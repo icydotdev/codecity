@@ -1,10 +1,57 @@
 {
   "name": "@icydotdev/repocity",
-  "version": "0.0.1",
-  "description": "A map of your codebase: every file a building, in a place that stays put.",
+  "version": "0.1.0",
+  "description": "Your codebase as a town. Every file a building, in a place that stays put.",
   "type": "module",
-  "bin": { "repocity": "bin/repocity.mjs" },
-  "scripts": { "test": "node --test" },
-  "engines": { "node": ">=20" },
-  "license": "MIT"
+  "bin": {
+    "repocity": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm run build:client && npm run build:server",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Sam Kavanagh",
+  "license": "MIT",
+  "homepage": "https://github.com/icydotdev/repocity#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/icydotdev/repocity"
+  },
+  "keywords": [
+    "codebase",
+    "visualization",
+    "code-city",
+    "git",
+    "3d",
+    "threejs",
+    "map",
+    "dependencies",
+    "imports",
+    "developer-tools",
+    "cli"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "three": "^0.186.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.4",
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^5.0.3"
+  }
 }

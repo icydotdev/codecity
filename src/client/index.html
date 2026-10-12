@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>__TITLE__ · Repo City</title>
+    <style>
+      /* An architect's site model: everything the colour of card, and colour spent only on what
+         the chosen lens is saying. */
+      :root {
+        --paper: #dfe3e8;
+        --ink: #12161b;
+        --soft: #5b6673;
+        --line: rgba(18, 22, 27, 0.14);
+        --panel: rgba(250, 251, 252, 0.86);
+        --accent: #1f4bff;
+        --hot: #ff4f2e;
+        --amber: #f59a00;
+        --fresh: #0fa97c;
+        --label: "Avenir Next Condensed", "Helvetica Neue", "Arial Narrow", sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      :root.dark {
+        --paper: #0d1014;
+        --ink: #e8ecf1;
+        --soft: #8c97a5;
+        --line: rgba(232, 236, 241, 0.16);
+        --panel: rgba(20, 24, 30, 0.86);
+        --accent: #6f95ff;
+        --hot: #ff6a4a;
+        --amber: #ffb53d;
+        --fresh: #2fc49a;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; overflow: hidden; background: var(--paper); color: var(--ink); font: 13px/1.4 var(--mono); }
+      canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+      canvas.dragging { cursor: grabbing; }
+      canvas.over { cursor: pointer; }
+
+      #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+      .district { text-shadow: 0 0 3px var(--paper), 0 0 3px var(--paper); position: absolute; transform: translate(-50%, -100%); white-space: nowrap; font: 600 11px/1 var(--label); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); padding-bottom: 5px; border-bottom: 1px solid var(--ink); }
+      .district::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 14px; background: var(--ink); }
+      .district.minor { font-weight: 500; font-size: 10px; color: var(--soft); border-color: var(--soft); }
+      .district.minor::after { background: var(--soft); height: 9px; }
+
+      header { position: fixed; left: 20px; top: 16px; pointer-events: none; padding: 10px 14px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      h1 { margin: 0; font: 600 30px/1 var(--label); letter-spacing: 0.08em; text-transform: uppercase; }
+      .sub { margin-top: 6px; color: var(--soft); }
+      #lands { display: inline-flex; margin-top: 10px; pointer-events: auto; }
+      #news { display: block; }
+      #news { pointer-events: auto; margin-top: 10px; display: none; font: inherit; color: var(--ink); background: none; border: 1px solid var(--hot); border-radius: 2px; padding: 4px 9px; cursor: pointer; }
+      #news b { color: var(--hot); }
+
+      #tools { position: fixed; right: 20px; top: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+      #search { width: 230px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 7px 9px; outline: none; backdrop-filter: blur(6px); }
+      #search:focus { border-color: var(--accent); }
+      .row { display: flex; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; background: var(--panel); backdrop-filter: blur(6px); }
+      .row button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); background: none; border: 0; border-left: 1px solid var(--line); padding: 8px 10px; cursor: pointer; }
+      .row button:first-child { border-left: 0; }
+      .row button:hover { color: var(--ink); }
+      .row button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+      button:focus-visible, #search:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      #windows { display: none; }
+      #heights { display: none; }
+      #heights span { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); padding: 8px 4px 8px 10px; }
+      #heights span + button { border-left: 0; }
+
+      #legend { position: fixed; right: 20px; bottom: 54px; min-width: 210px; max-width: 310px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      #legend:empty { display: none; }
+      #legend * + h2 { margin-top: 12px; }
+      #legend h2 { margin: 0 0 7px; font: 600 11px/1 var(--label); letter-spacing: 0.16em; text-transform: uppercase; }
+      #legend .ramp { height: 8px; border: 1px solid var(--line); }
+      #legend .ends { display: flex; justify-content: space-between; margin-top: 4px; color: var(--soft); font-size: 11px; }
+      #legend ul { list-style: none; margin: 0; padding: 0; }
+      #legend li { display: flex; align-items: center; gap: 8px; padding: 1px 0; }
+      #legend li i { width: 10px; height: 10px; flex: none; border: 1px solid var(--line); }
+      #legend li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #legend li em { font-style: normal; color: var(--soft); white-space: nowrap; }
+      #legend p { margin: 7px 0 0; color: var(--soft); font-size: 11px; }
+
+      #tip { position: fixed; pointer-events: none; display: none; max-width: 420px; padding: 6px 9px; background: var(--ink); color: var(--paper); border-radius: 2px; font-size: 12px; }
+      #tip small { display: block; opacity: 0.7; font-size: 11px; }
+
+      #card { position: fixed; left: 20px; bottom: 18px; width: 330px; display: none; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      #card .dir { color: var(--soft); word-break: break-all; }
+      #card .file { font-size: 16px; font-weight: 600; word-break: break-all; }
+      #card dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin: 10px 0; }
+      #card dt { color: var(--soft); }
+      #card dd { margin: 0; }
+      #card .acts { display: flex; gap: 8px; }
+      #card .hops { margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+      #card .hops h3 { flex-basis: 100%; margin: 0 0 2px; display: flex; align-items: center; gap: 7px; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; }
+      #card .hops h3 i { width: 14px; height: 4px; }
+      #card .hops .hop { font: 12px/1 var(--mono); letter-spacing: 0; text-transform: none; padding: 4px 6px; border-color: var(--line); }
+      #card .hops .hop:hover { border-color: var(--ink); }
+      #card .hops span { color: var(--soft); font-size: 11px; }
+      #card a, #card button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; }
+      #card a { background: var(--ink); color: var(--paper); }
+
+      #live { margin-left: 10px; }
+      #live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--fresh); }
+      #live.lost::before { background: var(--soft); }
+      #time { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: min(720px, calc(100vw - 40px)); padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      #time[hidden] { display: none; }
+      #time button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; min-width: 62px; }
+      #time input { flex: 1; accent-color: var(--hot); }
+      #time output { min-width: 96px; text-align: right; }
+      #help { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); color: var(--soft); font-size: 11px; pointer-events: none; white-space: nowrap; padding: 4px 10px; background: var(--panel); border-radius: 2px; }
+      @media (max-width: 900px) { #help { display: none; } #card { width: calc(100vw - 40px); bottom: 70px; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="labels"></div>
+    <header>
+      <h1 id="name"></h1>
+      <div class="sub"><span id="sub"></span><span id="live" hidden></span></div>
+      <div class="row" id="lands" role="group" aria-label="Landscape"></div>
+      <button id="news" type="button"></button>
+    </header>
+    <div id="tools">
+      <input id="search" type="search" placeholder="Find a file  ( / )" autocomplete="off" spellcheck="false" aria-label="Find a file" />
+      <div class="row" id="lenses" role="group" aria-label="Colour the map by"></div>
+      <div class="row" id="windows" role="group" aria-label="Changed within"></div>
+      <div class="row" id="heights" role="group" aria-label="Height shows"><span>Height</span></div>
+      <div class="row"><button type="button" id="era" aria-pressed="false">History</button></div>
+    </div>
+    <div id="legend"></div>
+    <div id="tip"></div>
+    <aside id="card" aria-live="polite"></aside>
+    <div id="time" hidden>
+      <button type="button" id="play" aria-label="Play">Play</button>
+      <input type="range" id="when" min="0" max="1" step="1" value="0" aria-label="Moment in the history" />
+      <output id="date" for="when"></output>
+      <button type="button" id="today">Today</button>
+    </div>
+    <div id="help">drag to move · scroll to zoom · Q / E to turn · T land · H height · click a building for its imports · double-click to open it</div>
+
+    <script id="data" type="application/json">__DATA__</script>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

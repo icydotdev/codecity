@@ -17,6 +17,36 @@
 // square root of the file's length (as its height does, so its volume is its
 // length). Nothing is stretched to fill a gap, which is why there are yards.
 
+/** What the layout needs to know about a file. */
+export interface Plotted {
+  path: string;
+  kind: "code" | "generated" | "asset";
+  lines: number;
+  birth: number;
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+export interface Plot<F extends Plotted> extends Rect {
+  file: F;
+  depth: number;
+}
+export interface District extends Rect {
+  path: string;
+  label: string;
+  depth: number;
+}
+export interface Plan<F extends Plotted> {
+  w: number;
+  h: number;
+  dirs: District[];
+  plots: Plot<F>[];
+}
+
 /** Ground area for each unit of weight, in the map's own units. */
 export const AREA_PER_WEIGHT = 1.25;
 /** Clear ground round every building. */
@@ -30,17 +60,17 @@ const WIDE = 1.5;
 /** Row widths go up in steps of this, from this. */
 const STEP = Math.SQRT2;
 const SMALLEST_ROW = 5;
-const at = (table, depth) => table[Math.min(depth, table.length - 1)];
+const at = (table: number[], depth: number) => table[Math.min(depth, table.length - 1)]!;
 
 /** A file's weight grows with the square root of its length. */
-export function weightOf(file) {
+export function weightOf(file: Pick<Plotted, "kind" | "lines">): number {
   if (file.kind === "asset") return 1.4;
   if (file.kind === "generated") return Math.min(6, 1.4 + Math.sqrt(file.lines) * 0.12);
   return Math.max(1.6, Math.sqrt(file.lines));
 }
 
 /** The width a block of this much ground is given for its rows: the next step up, so it rarely changes. */
-export function rowWidth(ground) {
+export function rowWidth(ground: number): number {
   const wanted = Math.sqrt(ground * WIDE);
   return SMALLEST_ROW * STEP ** Math.max(0, Math.ceil(Math.log(wanted / SMALLEST_ROW) / Math.log(STEP) - 1e-9));
 }
@@ -50,8 +80,8 @@ export function rowWidth(ground) {
  * under the one before it when there is room in the row, so small things fill in beside a
  * big one instead of leaving a hole. Each place depends only on what came earlier.
  */
-export function flow(items, gap, limit) {
-  const places = [];
+export function flow(items: { w: number; h: number }[], gap: number, limit: number): { w: number; h: number; places: { x: number; y: number }[] } {
+  const places: { x: number; y: number }[] = [];
   let rowY = 0;
   let rowH = 0;
   let colX = 0;
@@ -82,14 +112,21 @@ export function flow(items, gap, limit) {
   return { w: width, h: rowY + rowH, places };
 }
 
-function tree(files) {
-  const root = { name: "", path: "", dirs: new Map(), files: [] };
+interface Folder<F> {
+  name: string;
+  path: string;
+  dirs: Map<string, Folder<F>>;
+  files: F[];
+}
+
+function tree<F extends Plotted>(files: F[]): Folder<F> {
+  const root: Folder<F> = { name: "", path: "", dirs: new Map(), files: [] };
   for (const file of files) {
     const parts = file.path.split("/");
     let node = root;
     for (let i = 0; i < parts.length - 1; i++) {
-      let next = node.dirs.get(parts[i]);
-      if (!next) node.dirs.set(parts[i], (next = { name: parts[i], path: parts.slice(0, i + 1).join("/"), dirs: new Map(), files: [] }));
+      let next = node.dirs.get(parts[i]!);
+      if (!next) node.dirs.set(parts[i]!, (next = { name: parts[i]!, path: parts.slice(0, i + 1).join("/"), dirs: new Map(), files: [] }));
       node = next;
     }
     node.files.push(file);
@@ -97,15 +134,24 @@ function tree(files) {
   return root;
 }
 
-const oldestFirst = (a, b) => a.birth - b.birth || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
-const ground = (items, gap) => items.reduce((sum, item) => sum + (item.w + gap) * (item.h + gap), 0);
+interface Sized<F extends Plotted> {
+  key: string;
+  birth: number;
+  w: number;
+  h: number;
+  put(x: number, y: number, out: Plan<F>): void;
+}
+
+const oldestFirst = (a: { birth: number; key: string }, b: { birth: number; key: string }) => a.birth - b.birth || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+const ground = (items: { w: number; h: number }[], gap: number) => items.reduce((sum, item) => sum + (item.w + gap) * (item.h + gap), 0);
 
 /** Work out how much ground a folder needs, from the inside out. Returns its size and how to set it down. */
-function measure(node, depth) {
+function measure<F extends Plotted>(start: Folder<F>, depth: number): Sized<F> {
+  let node = start;
   let label = node.name;
   // src/ holding nothing but components/ is one district called src/components.
   while (depth > 0 && node.files.length === 0 && node.dirs.size === 1) {
-    node = [...node.dirs.values()][0];
+    node = [...node.dirs.values()][0]!;
     label += "/" + node.name;
   }
   // The folder's own files first, oldest first, as one block; then its folders, oldest first.
@@ -118,30 +164,34 @@ function measure(node, depth) {
   const block = flow(lots, 0, rowWidth(ground(lots, 0)));
   const kids = [...node.dirs.values()].map((dir) => measure(dir, depth + 1)).sort(oldestFirst);
   const street = at(STREET, depth);
-  const parts = [...(lots.length ? [block] : []), ...kids];
+  const parts: { w: number; h: number }[] = [...(lots.length ? [block] : []), ...kids];
   const plan = flow(parts, street, rowWidth(ground(parts, street)));
   const edge = at(PAVEMENT, depth);
+  const w = plan.w + edge * 2;
+  const h = plan.h + edge * 2;
+  const path = node.path;
   return {
-    key: node.path,
+    key: path,
     birth: Math.min(...lots.map((lot) => lot.birth), ...kids.map((kid) => kid.birth)),
-    w: plan.w + edge * 2,
-    h: plan.h + edge * 2,
+    w,
+    h,
     put(x, y, out) {
-      if (depth > 0) out.dirs.push({ path: node.path, label, depth, x, y, w: this.w, h: this.h });
+      if (depth > 0) out.dirs.push({ path, label, depth, x, y, w, h });
       plan.places.forEach((place, i) => {
         const px = x + edge + place.x;
         const py = y + edge + place.y;
-        if (parts[i] === block) lots.forEach((lot, j) => out.plots.push({ file: lot.file, depth, x: px + block.places[j].x, y: py + block.places[j].y, w: lot.w, h: lot.h }));
-        else parts[i].put(px, py, out);
+        const part = parts[i]!;
+        if (part === block) lots.forEach((lot, j) => out.plots.push({ file: lot.file, depth, x: px + block.places[j]!.x, y: py + block.places[j]!.y, w: lot.w, h: lot.h }));
+        else (part as Sized<F>).put(px, py, out);
       });
     },
   };
 }
 
 /** Every file's plot and every folder's plate, on a ground `w` by `h`. */
-export function layout(files) {
+export function layout<F extends Plotted>(files: F[]): Plan<F> {
   const root = measure(tree(files), 0);
-  const out = { w: root.w, h: root.h, dirs: [], plots: [] };
+  const out: Plan<F> = { w: root.w, h: root.h, dirs: [], plots: [] };
   root.put(0, 0, out);
   return out;
 }
