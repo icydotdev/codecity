@@ -4,7 +4,7 @@
   "description": "Your codebase as a town. Every file a building, in a place that stays put.",
   "type": "module",
   "bin": {
-    "repocity": "./dist/cli.js"
+    "repocity": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -30,7 +30,7 @@
   "homepage": "https://github.com/icydotdev/repocity#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/icydotdev/repocity"
+    "url": "git+https://github.com/icydotdev/repocity.git"
   },
   "keywords": [
     "codebase",
