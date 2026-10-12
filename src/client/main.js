@@ -170,6 +170,18 @@ const touchedBy = (f, moment) => {
 /** The height a building should be heading for, given the day it is and what height is showing. */
 const heightNow = (f) => (clock === null ? HEIGHTS[tallBy].of(f) : f.birth > clock ? 0 : HEIGHTS.lines.of(f, linesAt(f, clock)));
 
+/** Lay the districts' plates. In the history a district is not there until its first file is. */
+function pave() {
+  D.dirs.forEach((d, i) => {
+    const there = clock === null || d.birth <= clock ? 1 : 0;
+    put(plates, i, d.x + d.w / 2 - W / 2, 0, d.y + d.h / 2 - H / 2, d.w * there, 0.05 * d.depth * there, d.h * there);
+  });
+  plates.instanceMatrix.needsUpdate = true;
+  // The ruled outlines of the Corporate land are a plan of the finished town, so they wait for today.
+  for (const group of built.values()) for (const line of group.userData.outlines ?? []) line.visible = clock === null;
+  renderer.shadowMap.needsUpdate = true;
+}
+
 /** Stand every building at its present height. Its floors share the height out equally, whatever it measures. */
 function raise() {
   for (const f of files) {
@@ -299,7 +311,9 @@ const SCENERY = {
       }
       const outline = new THREE.BufferGeometry();
       outline.setAttribute("position", new THREE.Float32BufferAttribute(corners, 3));
-      group.add(new THREE.LineSegments(outline, new THREE.LineBasicMaterial({ color: 0xc9d8ff, transparent: true, opacity })));
+      const line = new THREE.LineSegments(outline, new THREE.LineBasicMaterial({ color: 0xc9d8ff, transparent: true, opacity }));
+      (group.userData.outlines ??= []).push(line);
+      group.add(line);
     }
     return group;
   },
@@ -364,6 +378,7 @@ function land(id) {
     scene.add(built.get(T.id));
   }
   for (const [key, group] of built) group.visible = key === T.id;
+  pave();
   for (const b of $("lands").children) b.setAttribute("aria-pressed", String(b.dataset.id === T.id));
   try {
     localStorage.setItem("repocity:land", T.id);
@@ -594,6 +609,7 @@ function setClock(place) {
   playhead = Math.max(0, Math.min(moments.length - 1, place));
   clock = moments[Math.round(playhead)];
   for (const f of files) f.goal = heightNow(f);
+  pave();
   $("when").value = String(Math.round(playhead));
   $("date").textContent = day(clock);
   paint();
@@ -618,6 +634,7 @@ function leaveHistory() {
   $("era").setAttribute("aria-pressed", "false");
   lamps.visible = true;
   for (const f of files) f.goal = heightNow(f);
+  pave();
   paint();
 }
 function play(on) {
@@ -637,7 +654,7 @@ function label() {
   const pxPerUnit = innerHeight / (2 * view.span);
   for (const { d, el, at } of signs) {
     const wide = Math.max(d.w, d.h) * pxPerUnit;
-    const showing = wide > (d.depth === 1 ? 70 : 190);
+    const showing = wide > (d.depth === 1 ? 70 : 190) && (clock === null || d.birth <= clock);
     el.style.display = showing ? "block" : "none";
     if (!showing) continue;
     v3.copy(at).project(camera);
@@ -676,6 +693,10 @@ function mount(data, animate) {
   }
   survey();
   if (clock !== null) clock = moments[Math.min(moments.length - 1, Math.round(playhead))];
+  // When each district's first file appeared.
+  const began = new Map();
+  for (const f of files) for (let at = f.path.lastIndexOf("/"); at > 0; at = f.path.lastIndexOf("/", at - 1)) if (f.birth < (began.get(f.path.slice(0, at)) ?? Infinity)) began.set(f.path.slice(0, at), f.birth);
+  for (const d of D.dirs) d.birth = began.get(d.path) ?? 0;
 
   // Light, ground and lens, to the size of this town.
   sun.position.set(-reach * 0.7, reach * 1.2 + tallest, reach * 0.45);
@@ -726,7 +747,6 @@ function mount(data, animate) {
   plates.count = D.dirs.length;
   plates.frustumCulled = false;
   plates.receiveShadow = true;
-  D.dirs.forEach((d, i) => put(plates, i, d.x + d.w / 2 - W / 2, 0, d.y + d.h / 2 - H / 2, d.w, 0.05 * d.depth, d.h));
   // Work not yet committed: a light on the roof.
   sites = files.filter((f) => f.dirty);
   lamps = new THREE.InstancedMesh(box, lampMaterial, Math.max(1, sites.length));
@@ -756,6 +776,7 @@ function mount(data, animate) {
   $("era").parentElement.style.display = moments.length > 2 ? "flex" : "none";
   $("when").max = String(moments.length - 1);
 
+  pave();
   wanted = search();
   picked = pickedPath ? (files.find((f) => f.path === pickedPath) ?? null) : null;
   raise();

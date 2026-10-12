@@ -1,6 +1,6 @@
 {
   "name": "@icydotdev/repocity",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A 3D map of your codebase. Every file is a building, and every building keeps its place.",
   "type": "module",
   "bin": {

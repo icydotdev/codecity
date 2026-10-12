@@ -25,7 +25,7 @@ Codebases now change faster than anyone can read them line by line. **repocity**
 It runs locally with a single command and produces a single HTML file. There is nothing to configure, no account to create, and no data leaves your machine.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/icydotdev/repocity/main/assets/demo-history.gif" width="800" alt="A 6,000 file repository growing from its first commit to the present day" />
+  <img src="https://raw.githubusercontent.com/icydotdev/repocity/main/assets/history.gif" width="800" alt="A 6,000 file repository growing from its first commit to the present day" />
 </p>
 
 <p align="center"><sub>History playback of a 6,000 file, 2,500 commit test repository.</sub></p>
@@ -88,7 +88,7 @@ The **Changed** view colours every file by how recently it was modified.
 ### Dependencies
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/icydotdev/repocity/main/assets/demo-imports.gif" width="800" alt="Selecting a file draws its imports and the files that import it" />
+  <img src="https://raw.githubusercontent.com/icydotdev/repocity/main/assets/dependencies.gif" width="800" alt="Selecting a file draws its imports and the files that import it" />
 </p>
 
 Select any file to see how it is connected.
@@ -120,7 +120,7 @@ This is the mode to use while coding agents are working: you can see where in th
 
 ### History
 
-Select **History** (or press `P`) to replay the repository from its first commit to the present. Each file appears on the date it was first committed and grows as it grew. Recently added files are shown in green and recently changed files in coral. The timeline can be paused and scrubbed.
+Select **History** (or press `P`) to replay the repository from its first commit to the present. Each district appears when its first file does, and each file appears on the date it was first committed and grows as it grew. Recently added files are shown in green and recently changed files in coral. The timeline can be paused and scrubbed.
 
 Playback advances by event, not by calendar time, so periods of inactivity are skipped.
 
