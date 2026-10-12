@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <!-- Three buildings on a plate, drawn the way the map draws them. -->
+  <path d="M60 104 12 78l48-26 48 26-48 26Z" fill="#E2E5E9"/>
+  <path d="M38 79V47l16-9v32l-16 9Z" fill="#D6DAE0"/><path d="M38 79 22 70V38l16 9v32Z" fill="#F4F5F7"/><path d="m22 38 16-9 16 9-16 9-16-9Z" fill="#FFFFFF"/>
+  <path d="M64 90V26l18-10v64L64 90Z" fill="#E33F22"/><path d="M64 90 46 80V16l18 10v64Z" fill="#FF6A4A"/><path d="m46 16 18-10 18 10-18 10-18-10Z" fill="#FF8E73"/>
+  <path d="M88 91V67l12-7v24l-12 7Z" fill="#D6DAE0"/><path d="m88 91-12-7V60l12 7v24Z" fill="#F4F5F7"/><path d="m76 60 12-7 12 7-12 7-12-7Z" fill="#FFFFFF"/>
+</svg>
