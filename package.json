@@ -1,14 +1,13 @@
 {
   "name": "@icydotdev/repocity",
-  "version": "0.1.0",
-  "description": "Your codebase as a town. Every file a building, in a place that stays put.",
+  "version": "0.1.1",
+  "description": "A 3D map of your codebase. Every file is a building, and every building keeps its place.",
   "type": "module",
   "bin": {
     "repocity": "dist/cli.js"
   },
   "files": [
-    "dist",
-    "assets"
+    "dist"
   ],
   "scripts": {
     "dev": "tsx src/cli.ts",

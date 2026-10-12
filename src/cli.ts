@@ -13,14 +13,14 @@ if (args.includes("--help") || args.includes("-h")) {
   console.log(`
   Usage: repocity [folder] [options]
 
-  Draws the git repository in [folder] (default: here) as a town,
-  one building for every file. Nothing leaves your machine.
+  Renders the git repository in [folder] (default: the current directory)
+  as a 3D map, one building per file. Runs locally; no data leaves your machine.
 
   Options:
     -w, --watch       Keep the map open and update it as files change
     --port <number>   Port for --watch (default: 3737)
     -o <file>         Where to write the map (default: a temporary folder)
-    --land <name>     What the town stands on: ${LANDS.join(", ")}
+    --land <name>     Theme: ${LANDS.join(", ")}
     --no-browser      Don't open the browser automatically
     -h, --help        Show this help message
 `);
@@ -54,7 +54,7 @@ const watching = has("-w", "--watch");
 const noBrowser = has("--no-browser", "--no-open");
 const unknown = args.find((arg) => arg.startsWith("-"));
 if (unknown) fail(`Unknown option ${unknown}. Try repocity --help`);
-if (wanted && !(LANDS as readonly string[]).includes(wanted)) fail(`No land called "${wanted}". There is ${LANDS.join(", ")}.`);
+if (wanted && !(LANDS as readonly string[]).includes(wanted)) fail(`Unknown theme "${wanted}". Available: ${LANDS.join(", ")}.`);
 if (!Number.isInteger(port) || port < 1 || port > 65535) fail("--port needs a number between 1 and 65535.");
 const land = wanted as Land | null;
 const dir = path.resolve(args[0] ?? ".");
