@@ -11,7 +11,7 @@ const args = process.argv.slice(2);
 
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
-  Usage: repocity [folder] [options]
+  Usage: codecity [folder] [options]
 
   Renders the git repository in [folder] (default: the current directory)
   as a 3D map, one building per file. Runs locally; no data leaves your machine.
@@ -53,7 +53,7 @@ const port = Number(take("--port") ?? 3737);
 const watching = has("-w", "--watch");
 const noBrowser = has("--no-browser", "--no-open");
 const unknown = args.find((arg) => arg.startsWith("-"));
-if (unknown) fail(`Unknown option ${unknown}. Try repocity --help`);
+if (unknown) fail(`Unknown option ${unknown}. Try codecity --help`);
 if (wanted && !(LANDS as readonly string[]).includes(wanted)) fail(`Unknown theme "${wanted}". Available: ${LANDS.join(", ")}.`);
 if (!Number.isInteger(port) || port < 1 || port > 65535) fail("--port needs a number between 1 and 65535.");
 const land = wanted as Land | null;
@@ -84,7 +84,7 @@ if (watching) {
   try {
     const { city } = buildCity(dir, { land });
     if (!city.files.length) fail("Git knows of no files here yet.");
-    const target = path.resolve(out ?? path.join(os.tmpdir(), "repocity", `${city.name}.html`));
+    const target = path.resolve(out ?? path.join(os.tmpdir(), "codecity", `${city.name}.html`));
     mkdirSync(path.dirname(target), { recursive: true });
     writeFileSync(target, page(city));
     console.log(`\n  🏙️  ${city.name}: ${city.files.length.toLocaleString()} files → ${target}\n`);

@@ -381,7 +381,7 @@ function land(id) {
   pave();
   for (const b of $("lands").children) b.setAttribute("aria-pressed", String(b.dataset.id === T.id));
   try {
-    localStorage.setItem("repocity:land", T.id);
+    localStorage.setItem("codecity:land", T.id);
   } catch {
     /* storage switched off */
   }
@@ -428,7 +428,7 @@ const fileAt = (e) => {
 const flyTo = (f) => Object.assign(goal, { x: f.cx, z: f.cz, span: Math.min(goal.span, Math.max(14, f.tall * 1.6, Math.max(f.fw, f.fd) * 6)) });
 
 // ------------------------------------------------------------------ lenses
-const lastSeenKey = () => `repocity:${D.root}:seen`;
+const lastSeenKey = () => `codecity:${D.root}:seen`;
 let lastSeen = null;
 
 const WINDOWS = [
@@ -790,7 +790,7 @@ function mount(data, animate) {
 }
 const stored = () => {
   try {
-    return localStorage.getItem("repocity:land");
+    return localStorage.getItem("codecity:land");
   } catch {
     return null; // storage switched off
   }

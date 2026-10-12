@@ -1,10 +1,10 @@
 {
-  "name": "@icydotdev/repocity",
-  "version": "0.1.2",
+  "name": "codecity",
+  "version": "0.2.0",
   "description": "A 3D map of your codebase. Every file is a building, and every building keeps its place.",
   "type": "module",
   "bin": {
-    "repocity": "dist/cli.js"
+    "codecity": "dist/cli.js"
   },
   "files": [
     "dist"
@@ -26,10 +26,10 @@
   },
   "author": "Sam Kavanagh",
   "license": "MIT",
-  "homepage": "https://github.com/icydotdev/repocity#readme",
+  "homepage": "https://github.com/icydotdev/codecity#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/icydotdev/repocity.git"
+    "url": "git+https://github.com/icydotdev/codecity.git"
   },
   "keywords": [
     "codebase",
