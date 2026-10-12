@@ -1,0 +1,10 @@
+{
+  "name": "@icydotdev/repocity",
+  "version": "0.0.1",
+  "description": "A map of your codebase: every file a building, in a place that stays put.",
+  "type": "module",
+  "bin": { "repocity": "bin/repocity.mjs" },
+  "scripts": { "test": "node --test" },
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}

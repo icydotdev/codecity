@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>__TITLE__ · Repo City</title>
+    <style>
+      /* An architect's site model: everything the colour of card, and colour spent only on what
+         the chosen lens is saying. */
+      :root {
+        --paper: #dfe3e8;
+        --ink: #12161b;
+        --soft: #5b6673;
+        --line: rgba(18, 22, 27, 0.14);
+        --panel: rgba(250, 251, 252, 0.86);
+        --accent: #1f4bff;
+        --hot: #ff4f2e;
+        --amber: #f59a00;
+        --label: "Avenir Next Condensed", "Helvetica Neue", "Arial Narrow", sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      :root.dark {
+        --paper: #0d1014;
+        --ink: #e8ecf1;
+        --soft: #8c97a5;
+        --line: rgba(232, 236, 241, 0.16);
+        --panel: rgba(20, 24, 30, 0.86);
+        --accent: #6f95ff;
+        --hot: #ff6a4a;
+        --amber: #ffb53d;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; overflow: hidden; background: var(--paper); color: var(--ink); font: 13px/1.4 var(--mono); }
+      canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+      canvas.dragging { cursor: grabbing; }
+      canvas.over { cursor: pointer; }
+
+      #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+      .district { text-shadow: 0 0 3px var(--paper), 0 0 3px var(--paper); position: absolute; transform: translate(-50%, -100%); white-space: nowrap; font: 600 11px/1 var(--label); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); padding-bottom: 5px; border-bottom: 1px solid var(--ink); }
+      .district::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 14px; background: var(--ink); }
+      .district.minor { font-weight: 500; font-size: 10px; color: var(--soft); border-color: var(--soft); }
+      .district.minor::after { background: var(--soft); height: 9px; }
+
+      header { position: fixed; left: 20px; top: 16px; pointer-events: none; padding: 10px 14px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      h1 { margin: 0; font: 600 30px/1 var(--label); letter-spacing: 0.08em; text-transform: uppercase; }
+      .sub { margin-top: 6px; color: var(--soft); }
+      #lands { display: inline-flex; margin-top: 10px; pointer-events: auto; }
+      #news { display: block; }
+      #news { pointer-events: auto; margin-top: 10px; display: none; font: inherit; color: var(--ink); background: none; border: 1px solid var(--hot); border-radius: 2px; padding: 4px 9px; cursor: pointer; }
+      #news b { color: var(--hot); }
+
+      #tools { position: fixed; right: 20px; top: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+      #search { width: 230px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 7px 9px; outline: none; backdrop-filter: blur(6px); }
+      #search:focus { border-color: var(--accent); }
+      .row { display: flex; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; background: var(--panel); backdrop-filter: blur(6px); }
+      .row button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); background: none; border: 0; border-left: 1px solid var(--line); padding: 8px 10px; cursor: pointer; }
+      .row button:first-child { border-left: 0; }
+      .row button:hover { color: var(--ink); }
+      .row button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+      button:focus-visible, #search:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      #windows { display: none; }
+      #heights { display: none; }
+      #heights span { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); padding: 8px 4px 8px 10px; }
+      #heights span + button { border-left: 0; }
+
+      #legend { position: fixed; right: 20px; bottom: 54px; min-width: 210px; max-width: 310px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      #legend:empty { display: none; }
+      #legend * + h2 { margin-top: 12px; }
+      #legend h2 { margin: 0 0 7px; font: 600 11px/1 var(--label); letter-spacing: 0.16em; text-transform: uppercase; }
+      #legend .ramp { height: 8px; border: 1px solid var(--line); }
+      #legend .ends { display: flex; justify-content: space-between; margin-top: 4px; color: var(--soft); font-size: 11px; }
+      #legend ul { list-style: none; margin: 0; padding: 0; }
+      #legend li { display: flex; align-items: center; gap: 8px; padding: 1px 0; }
+      #legend li i { width: 10px; height: 10px; flex: none; border: 1px solid var(--line); }
+      #legend li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #legend li em { font-style: normal; color: var(--soft); white-space: nowrap; }
+      #legend p { margin: 7px 0 0; color: var(--soft); font-size: 11px; }
+
+      #tip { position: fixed; pointer-events: none; display: none; max-width: 420px; padding: 6px 9px; background: var(--ink); color: var(--paper); border-radius: 2px; font-size: 12px; }
+      #tip small { display: block; opacity: 0.7; font-size: 11px; }
+
+      #card { position: fixed; left: 20px; bottom: 18px; width: 330px; display: none; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      #card .dir { color: var(--soft); word-break: break-all; }
+      #card .file { font-size: 16px; font-weight: 600; word-break: break-all; }
+      #card dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin: 10px 0; }
+      #card dt { color: var(--soft); }
+      #card dd { margin: 0; }
+      #card .acts { display: flex; gap: 8px; }
+      #card .hops { margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+      #card .hops h3 { flex-basis: 100%; margin: 0 0 2px; display: flex; align-items: center; gap: 7px; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; }
+      #card .hops h3 i { width: 14px; height: 4px; }
+      #card .hops .hop { font: 12px/1 var(--mono); letter-spacing: 0; text-transform: none; padding: 4px 6px; border-color: var(--line); }
+      #card .hops .hop:hover { border-color: var(--ink); }
+      #card .hops span { color: var(--soft); font-size: 11px; }
+      #card a, #card button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; }
+      #card a { background: var(--ink); color: var(--paper); }
+
+      #help { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); color: var(--soft); font-size: 11px; pointer-events: none; white-space: nowrap; padding: 4px 10px; background: var(--panel); border-radius: 2px; }
+      @media (max-width: 900px) { #help { display: none; } #card { width: calc(100vw - 40px); bottom: 70px; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="labels"></div>
+    <header>
+      <h1 id="name"></h1>
+      <div class="sub" id="sub"></div>
+      <div class="row" id="lands" role="group" aria-label="Landscape"></div>
+      <button id="news" type="button"></button>
+    </header>
+    <div id="tools">
+      <input id="search" type="search" placeholder="Find a file  ( / )" autocomplete="off" spellcheck="false" aria-label="Find a file" />
+      <div class="row" id="lenses" role="group" aria-label="Colour the map by"></div>
+      <div class="row" id="windows" role="group" aria-label="Changed within"></div>
+      <div class="row" id="heights" role="group" aria-label="Height shows"><span>Height</span></div>
+    </div>
+    <div id="legend"></div>
+    <div id="tip"></div>
+    <aside id="card" aria-live="polite"></aside>
+    <div id="help">drag to move · scroll to zoom · Q / E to turn · T to change the land · click a building for its imports (L hides them) · double-click to open it</div>
+
+    <script id="data" type="application/json">__DATA__</script>
+    <script type="module">
+      import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+      const D = JSON.parse(document.getElementById("data").textContent);
+      const files = D.files;
+      // Imports: `uses` is what a file imports, `usedBy` is who imports it. Both are places in `files`.
+      for (const f of files) (f.uses = (f.uses ?? []).filter((i) => files[i])), (f.usedBy = []);
+      files.forEach((f, i) => f.uses.forEach((j) => files[j].usedBy.push(i)));
+      const NOW = D.at;
+      const DAY = 86400;
+      const $ = (id) => document.getElementById(id);
+
+      // ---------------------------------------------------------------- land
+      // The buildings are the data, and they are the same in every land: same shapes, same places, and the
+      // same white light, so a colour means the same thing wherever the town stands. What it stands on is taste.
+      const DAYLIGHT = { ui: "light", card: 0xfbfbfc, slab: 0xbcc3cb, old: 0x4a5670, other: 0xaab2bc, accent: 0x1f4bff, hot: 0xff4f2e, fresh: 0x0fa97c, amber: 0xf59a00, bounce: 0xd2d7dd, sun: 2.0, air: 1.5 };
+      const LANDS = {
+        plain: matchMedia("(prefers-color-scheme: dark)").matches
+          ? { label: "Plain", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1 }
+          : { label: "Plain", ground: 0xd2d7dd, plates: [0xe2e5e9, 0xeaecef, 0xf1f2f4], park: 0xc2d6c6, dim: 0xd6dadf },
+        // Navy, a drawing-office grid, ruled outlines and nothing else: the one to put in front of a board.
+        corporate: { label: "Corporate", ui: "dark", ground: 0x14254a, plates: [0x1d3463, 0x264177, 0x304e8a], slab: 0x8492ab, park: 0x4a7fc4, dim: 0x22345c, old: 0x5d6c8d, other: 0x6b7890, accent: 0x7fa2ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d },
+        beach: { label: "Beach", ground: 0x7fc4d0, plates: [0xf1e2bd, 0xf5ead0, 0xf8f1e0], park: 0xf3b89a, dim: 0xe3d3a8 },
+      };
+      for (const id in LANDS) LANDS[id] = { ...DAYLIGHT, ...LANDS[id], id };
+      let T = LANDS.plain;
+      const PALETTE = [0x1f4bff, 0xff4f2e, 0x12a37a, 0xf59a00, 0x9b4dff, 0x00a3c7, 0xe0457b].map((hex) => new THREE.Color(hex));
+
+      // ---------------------------------------------------------------- words
+      const ago = (seconds) => {
+        const s = Math.max(0, NOW - seconds);
+        if (s < 90) return "just now";
+        if (s < 3600) return `${Math.round(s / 60)} min ago`;
+        if (s < DAY) return `${Math.round(s / 3600)} h ago`;
+        if (s < DAY * 60) return `${Math.round(s / DAY)} d ago`;
+        if (s < DAY * 730) return `${Math.round(s / DAY / 30.4)} mo ago`;
+        return `${(s / DAY / 365.25).toFixed(1)} y ago`;
+      };
+      const day = (seconds) => new Date(seconds * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      const count = (n, one, many = one + "s") => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+      const esc = (text) => text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+      const split = (p) => { const i = p.lastIndexOf("/"); return [i < 0 ? "" : p.slice(0, i + 1), p.slice(i + 1)]; };
+      const ext = (p) => { const name = split(p)[1]; const i = name.lastIndexOf("."); return i <= 0 ? "(none)" : name.slice(i); };
+
+      // ---------------------------------------------------------------- scene
+      const canvas = $("c");
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(T.ground);
+
+      const W = D.w;
+      const H = D.h;
+      const reach = Math.hypot(W, H) / 2;
+      // What height means. Usually a building is as tall as its file is long. It can be asked to show how
+      // many files import it instead: same town, same places, and the huts everything leans on become towers.
+      const flat = (f) => (f.kind === "asset" ? 0.22 : f.kind === "generated" ? 0.5 : 0);
+      const HEIGHTS = {
+        lines: { label: "Lines", of: (f) => flat(f) || Math.max(0.7, 0.45 * Math.sqrt(f.lines)) },
+        usedBy: { label: "Imported by", of: (f) => flat(f) || 0.5 + 3.2 * Math.sqrt(f.usedBy.length) },
+      };
+      let tallBy = "lines";
+      const tallest = files.reduce((top, f) => Math.max(top, HEIGHTS.lines.of(f), HEIGHTS.usedBy.of(f)), 1);
+
+      // Three measures light physically: a matte white surface shows as white when what falls on it adds up to pi.
+      const air = new THREE.HemisphereLight(0xffffff, T.bounce, T.air);
+      scene.add(air);
+      const sun = new THREE.DirectionalLight(0xffffff, T.sun);
+      sun.position.set(-reach * 0.7, reach * 1.2 + tallest, reach * 0.45);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(4096, 4096);
+      Object.assign(sun.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: reach * 4 + tallest });
+      sun.shadow.bias = -0.0004;
+      sun.shadow.normalBias = 0.04;
+      scene.add(sun);
+
+      const matte = (color) => new THREE.MeshStandardMaterial({ color, roughness: 1, metalness: 0 });
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(reach * 8, reach * 8), matte(T.ground));
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // A box that stands on the ground instead of straddling it.
+      const box = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+      const m4 = new THREE.Matrix4();
+      const v3 = new THREE.Vector3();
+      const q0 = new THREE.Quaternion();
+      const put = (mesh, i, x, y, z, sx, sy, sz) => mesh.setMatrixAt(i, m4.compose(v3.set(x, y, z), q0, new THREE.Vector3(sx, sy, sz)));
+
+      // Districts: a plate for every folder, each a step lighter and a hair higher than the one it sits on.
+      const plates = new THREE.InstancedMesh(box, matte(0xffffff), D.dirs.length);
+      D.dirs.forEach((d, i) => {
+        put(plates, i, d.x + d.w / 2 - W / 2, 0, d.y + d.h / 2 - H / 2, d.w, 0.05 * d.depth, d.h);
+        plates.setColorAt(i, new THREE.Color(T.plates[Math.min(d.depth, T.plates.length) - 1]));
+      });
+      plates.receiveShadow = true;
+      scene.add(plates);
+
+      // Buildings: one box per floor.
+      const floorCount = files.reduce((sum, f) => sum + f.floors.length, 0);
+      const town = new THREE.InstancedMesh(box, matte(0xffffff), floorCount);
+      town.castShadow = town.receiveShadow = true;
+      const owner = new Uint32Array(floorCount);
+      let next = 0;
+      for (const [index, f] of files.entries()) {
+        const gap = Math.min(0.3, Math.min(f.w, f.h) * 0.12);
+        // A plot can come out long and thin. The building on it does not: no side more than twice the other.
+        const w = Math.min(f.w - gap * 2, (f.h - gap * 2) * 2);
+        const d = Math.min(f.h - gap * 2, (f.w - gap * 2) * 2);
+        f.fw = w;
+        f.fd = d;
+        f.cx = f.x + f.w / 2 - W / 2;
+        f.cz = f.y + f.h / 2 - H / 2;
+        f.base = 0.05 * f.depth;
+        f.tall = f.goal = HEIGHTS.lines.of(f);
+        f.first = next;
+        for (let level = 0; level < f.floors.length; level++) owner[next++] = index;
+      }
+      /** Stand every building at its present height. Its floors share the height out equally, whatever it measures. */
+      function raise() {
+        for (const f of files) {
+          const each = f.tall / f.floors.length;
+          f.floors.forEach(([wide, deep], level) => put(town, f.first + level, f.cx, f.base + level * each, f.cz, (f.fw * wide) / 100, each, (f.fd * deep) / 100));
+        }
+        town.instanceMatrix.needsUpdate = true;
+      }
+      raise();
+      scene.add(town);
+
+      // Work not yet committed: a light on the roof.
+      const sites = files.filter((f) => f.dirty);
+      const lamps = new THREE.InstancedMesh(box, new THREE.MeshBasicMaterial({ color: T.amber }), Math.max(1, sites.length));
+      lamps.count = sites.length;
+      scene.add(lamps);
+
+      const marker = (color, opacity) => {
+        const mesh = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color, transparent: true, opacity }));
+        mesh.visible = false;
+        scene.add(mesh);
+        return mesh;
+      };
+      const hoverPlate = marker(T.accent, 0.35);
+      const pickPlate = marker(T.accent, 1);
+      const stand = (plate, f) => {
+        plate.visible = !!f;
+        if (f) plate.position.set(f.cx, f.base, f.cz), plate.scale.set(f.fw + 0.7, 0.09, f.fd + 0.7);
+      };
+
+      // ---------------------------------------------------------------- links
+      // Imports, for one building at a time: every import in the town at once is a ball of wool.
+      // They go over the roofs and not along the ground, where the buildings would hide them.
+      const USED_BY = 0x9b4dff;
+      const links = new THREE.Group();
+      scene.add(links);
+      let linksOn = true;
+      function wire(f) {
+        for (const old of [...links.children]) links.remove(old), old.geometry.dispose(), old.material.dispose();
+        if (!f || !linksOn) return;
+        const roof = (b) => new THREE.Vector3(b.cx, b.base + b.tall, b.cz);
+        const span = (from, to, hex) => {
+          const a = roof(from);
+          const b = roof(to);
+          const top = a.clone().lerp(b, 0.5);
+          top.y = Math.max(a.y, b.y) + 1.5 + a.distanceTo(b) * 0.22;
+          const curve = new THREE.QuadraticBezierCurve3(a, top, b);
+          links.add(new THREE.Mesh(new THREE.TubeGeometry(curve, Math.round(Math.min(40, 12 + a.distanceTo(b))), 0.13, 5), new THREE.MeshBasicMaterial({ color: hex })));
+        };
+        const foot = (b, hex) => {
+          const plate = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: hex }));
+          plate.position.set(b.cx, b.base, b.cz);
+          plate.scale.set(b.fw + 0.6, 0.08, b.fd + 0.6);
+          links.add(plate);
+        };
+        for (const i of f.uses) span(f, files[i], T.accent), foot(files[i], T.accent);
+        for (const i of f.usedBy) span(files[i], f, USED_BY), foot(files[i], USED_BY);
+      }
+
+      // ---------------------------------------------------------------- scenery
+      // Palms, parasols, boats, a ruled grid. Scenery is never data: it cannot be picked, and it stands only where no building does.
+      const seed = [...D.name].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619), 2166136261);
+      const chance = (x, z, n) => {
+        let h = Math.imul(x, 374761393) ^ Math.imul(z, 668265263) ^ Math.imul(n + 1, 1274126177) ^ seed;
+        h = Math.imul(h ^ (h >>> 13), 1274126177);
+        return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+      };
+      const taken = (x, z, pad) => files.some((f) => x > f.x - pad && x < f.x + f.w + pad && z > f.y - pad && z < f.y + f.h + pad);
+      /**
+       * Places for scenery: a fixed, jittered grid in the map's own coordinates, so a palm stands
+       * where it stood yesterday, and goes only when something is built on its spot.
+       */
+      function* spots(cell, margin) {
+        for (let ix = Math.floor(-margin / cell); ix * cell < W + margin; ix++)
+          for (let iz = Math.floor(-margin / cell); iz * cell < H + margin; iz++) {
+            const x = (ix + 0.15 + 0.7 * chance(ix, iz, 0)) * cell;
+            const z = (iz + 0.15 + 0.7 * chance(ix, iz, 1)) * cell;
+            const out = Math.max(-x, x - W, -z, z - H, 0); // how far outside the town; 0 inside it
+            if (out > margin || (out === 0 && taken(x, z, 0.3))) continue;
+            yield { x: x - W / 2, z: z - H / 2, mapX: x, mapZ: z, out, r: (n) => chance(ix, iz, n + 2) };
+          }
+      }
+      const G = {
+        trunk: new THREE.CylinderGeometry(0.4, 0.5, 1, 5).translate(0, 0.5, 0),
+        cone: new THREE.ConeGeometry(0.5, 1, 6).translate(0, 0.5, 0),
+        shade: new THREE.ConeGeometry(0.5, 1, 8).translate(0, 0.5, 0),
+        leaf: new THREE.BoxGeometry(1, 0.05, 0.3).translate(0.5, 0, 0),
+      };
+      /** Collects pieces and turns each kind of shape into one instanced mesh. */
+      function pieces() {
+        const group = new THREE.Group();
+        const made = new Map();
+        const turn = new THREE.Euler();
+        return {
+          group,
+          set(geometry, hex, x, y, z, sx, sy, sz, ry = 0, rz = 0) {
+            if (!made.has(geometry)) made.set(geometry, []);
+            made.get(geometry).push([new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(turn.set(0, ry, rz, "YXZ")), new THREE.Vector3(sx, sy, sz)), hex]);
+          },
+          done() {
+            for (const [geometry, list] of made) {
+              const mesh = new THREE.InstancedMesh(geometry, new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), list.length);
+              list.forEach(([matrix, hex], i) => (mesh.setMatrixAt(i, matrix), mesh.setColorAt(i, new THREE.Color(hex))));
+              mesh.castShadow = mesh.receiveShadow = true;
+              group.add(mesh);
+            }
+            return group;
+          },
+        };
+      }
+      /** A rounded piece of ground, the size of the town and `grow` more all round: the island, and the water round it. */
+      function field(group, grow, y, hex) {
+        const w = W / 2 + grow;
+        const h = H / 2 + grow;
+        const r = Math.min(W, H) * 0.16 + grow;
+        const shape = new THREE.Shape().moveTo(-w + r, -h).lineTo(w - r, -h).absarc(w - r, -h + r, r, -Math.PI / 2, 0).lineTo(w, h - r).absarc(w - r, h - r, r, 0, Math.PI / 2).lineTo(-w + r, h).absarc(-w + r, h - r, r, Math.PI / 2, Math.PI).lineTo(-w, -h + r).absarc(-w + r, -h + r, r, Math.PI, Math.PI * 1.5);
+        const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape, 16).rotateX(-Math.PI / 2), matte(hex));
+        mesh.position.y = y;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+      }
+      const SCENERY = {
+        corporate() {
+          const group = new THREE.Group();
+          // A ruled ground, fine and then every fifth line heavier, like the paper a plan is drawn on.
+          const size = Math.ceil((reach * 5) / 50) * 50;
+          for (const [every, opacity] of [[2.5, 0.16], [12.5, 0.34]]) {
+            const grid = new THREE.GridHelper(size, size / every, 0x9db7ff, 0x9db7ff);
+            Object.assign(grid.material, { transparent: true, opacity, depthWrite: false });
+            grid.position.y = 0.012;
+            group.add(grid);
+          }
+          // Every district outlined, the way a site plan marks a boundary.
+          for (const [depth, opacity] of [[1, 0.75], [2, 0.38]]) {
+            const corners = [];
+            for (const d of D.dirs.filter((dir) => dir.depth === depth)) {
+              const [x0, x1, z0, z1, y] = [d.x - W / 2, d.x + d.w - W / 2, d.y - H / 2, d.y + d.h - H / 2, 0.05 * depth + 0.012];
+              corners.push(x0, y, z0, x1, y, z0, x1, y, z0, x1, y, z1, x1, y, z1, x0, y, z1, x0, y, z1, x0, y, z0);
+            }
+            const outline = new THREE.BufferGeometry();
+            outline.setAttribute("position", new THREE.Float32BufferAttribute(corners, 3));
+            group.add(new THREE.LineSegments(outline, new THREE.LineBasicMaterial({ color: 0xc9d8ff, transparent: true, opacity })));
+          }
+          return group;
+        },
+        beach() {
+          const s = pieces();
+          const shore = 9;
+          // The town stands on an island of sand: sand, a line of foam, pale shallows, then the sea (the ground itself).
+          field(s.group, shore + 7, 0.01, 0xa6dade);
+          field(s.group, shore + 1.1, 0.02, 0xf7fcfa);
+          field(s.group, shore, 0.03, 0xecd9aa);
+          for (const p of spots(3.1, shore - 1.5)) {
+            if (p.r(0) > (p.out === 0 ? 0.14 : 0.5)) continue;
+            if (p.out > 2 && p.r(1) < 0.3) {
+              // A parasol.
+              s.set(G.trunk, 0xf4f4f4, p.x, 0, p.z, 0.05, 0.95, 0.05);
+              s.set(G.shade, [0xff6b57, 0xffffff, 0x2bb3b1, 0xffd35c][Math.floor(p.r(2) * 4)], p.x, 0.8, p.z, 1.5, 0.38, 1.5, p.r(3) * 6.3);
+              continue;
+            }
+            const tall = 1.5 + p.r(2) * 1.3;
+            s.set(G.trunk, 0x9a7b54, p.x, 0, p.z, 0.13, tall, 0.13);
+            for (let leaf = 0; leaf < 6; leaf++) s.set(G.leaf, leaf % 2 ? 0x4f9a6a : 0x3f8a5c, p.x, tall, p.z, 0.85 + p.r(3) * 0.4, 1, 1, (leaf / 6 + p.r(4)) * Math.PI * 2, -0.45 - (leaf % 2) * 0.2);
+          }
+          // A few boats, well out.
+          for (const p of spots(11, shore + 40)) {
+            if (p.out < shore + 9 || p.r(0) > 0.22) continue;
+            const heading = p.r(1) * 6.3;
+            s.set(box, p.r(2) < 0.5 ? 0xffffff : 0xff6b57, p.x, 0, p.z, 1.7, 0.28, 0.6, heading);
+            s.set(G.cone, 0xffffff, p.x, 0.28, p.z, 0.9, 1.5, 0.08, heading);
+          }
+          return s.done();
+        },
+      };
+
+      const built = new Map();
+      /** Change what the town stands on. Nothing about the buildings moves or changes shape. */
+      function land(id) {
+        T = LANDS[id] ?? LANDS.plain;
+        document.documentElement.classList.toggle("dark", T.ui === "dark");
+        scene.background.set(T.ground);
+        ground.material.color.set(T.ground);
+        air.groundColor.set(T.bounce);
+        air.intensity = T.air;
+        sun.intensity = T.sun;
+        D.dirs.forEach((d, i) => plates.setColorAt(i, new THREE.Color(T.plates[Math.min(d.depth, T.plates.length) - 1])));
+        if (plates.instanceColor) plates.instanceColor.needsUpdate = true;
+        for (const key in C) C[key].set(T[key]);
+        lamps.material.color.set(T.amber);
+        hoverPlate.material.color.set(T.accent);
+        pickPlate.material.color.set(T.accent);
+        wire(picked);
+        if (!built.has(T.id)) {
+          built.set(T.id, SCENERY[T.id]?.() ?? new THREE.Group());
+          scene.add(built.get(T.id));
+        }
+        for (const [key, group] of built) group.visible = key === T.id;
+        for (const b of $("lands").children) b.setAttribute("aria-pressed", String(b.dataset.id === T.id));
+        try {
+          localStorage.setItem("repocity:land", T.id);
+        } catch {
+          /* storage switched off */
+        }
+        paint();
+      }
+
+      // ---------------------------------------------------------------- camera
+      // A fixed tilt, and four places to stand: you can turn the model, you cannot get lost in it.
+      const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, reach * 12 + tallest * 4);
+      const TILT = (36 * Math.PI) / 180;
+      const view = { x: 0, z: 0, turn: Math.PI / 4, span: 1 };
+      const goal = { ...view };
+      const fit = () => Math.max(H * 0.62, (W * 0.62) / (innerWidth / innerHeight), 12);
+      view.span = goal.span = fit();
+      function aim() {
+        const aspect = innerWidth / innerHeight;
+        Object.assign(camera, { left: -view.span * aspect, right: view.span * aspect, top: view.span, bottom: -view.span });
+        const far = reach * 5 + tallest * 2;
+        camera.position.set(view.x + Math.sin(view.turn) * Math.cos(TILT) * far, Math.sin(TILT) * far, view.z + Math.cos(view.turn) * Math.cos(TILT) * far);
+        camera.lookAt(view.x, 0, view.z);
+        camera.updateProjectionMatrix();
+        camera.updateMatrixWorld();
+      }
+      function resize() {
+        renderer.setSize(innerWidth, innerHeight, false);
+        aim();
+      }
+      addEventListener("resize", resize);
+
+      const ray = new THREE.Raycaster();
+      const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const ndc = (e) => new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+      const groundAt = (e) => {
+        ray.setFromCamera(ndc(e), camera);
+        return ray.ray.intersectPlane(floorPlane, new THREE.Vector3());
+      };
+      const fileAt = (e) => {
+        ray.setFromCamera(ndc(e), camera);
+        const hit = ray.intersectObject(town)[0];
+        return hit ? files[owner[hit.instanceId]] : null;
+      };
+      const flyTo = (f) => Object.assign(goal, { x: f.cx, z: f.cz, span: Math.min(goal.span, Math.max(14, f.tall * 1.6, Math.max(f.fw, f.fd) * 6)) });
+
+      // ---------------------------------------------------------------- lenses
+      const lastSeenKey = `repocity:${D.root}:seen`;
+      let lastSeen = null;
+      try {
+        lastSeen = Number(localStorage.getItem(lastSeenKey)) || null;
+        localStorage.setItem(lastSeenKey, String(NOW));
+      } catch {
+        /* storage switched off: every visit is a first visit */
+      }
+      const unread = lastSeen ? files.filter((f) => f.modified > lastSeen) : [];
+
+      const WINDOWS = [
+        { id: "auto", label: "Auto" },
+        ...(lastSeen ? [{ id: "visit", label: "Since last visit", since: lastSeen }] : []),
+        { id: "1d", label: "24 h", since: NOW - DAY },
+        { id: "7d", label: "7 d", since: NOW - 7 * DAY },
+        { id: "30d", label: "30 d", since: NOW - 30 * DAY },
+        { id: "90d", label: "90 d", since: NOW - 90 * DAY },
+        { id: "1y", label: "1 y", since: NOW - 365 * DAY },
+      ];
+      let windowId = "auto";
+
+      // "Lately" and "long ago" mean different things in a project a month old and one ten years old. So Auto
+      // has no dates in it: every file is placed by where its last change falls among all the others' last
+      // changes. 1 is the most lately touched, 0 the longest left alone, and files changed together share a place.
+      const touched = files.map((f) => f.modified).sort((a, b) => a - b);
+      const firstAtLeast = (value) => {
+        let lo = 0;
+        let hi = touched.length;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (touched[mid] < value) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      };
+      const standing = files.map((f) => (files.length > 1 ? (firstAtLeast(f.modified) + firstAtLeast(f.modified + 1) - 1) / 2 / (files.length - 1) : 0.5));
+      const touchedAt = (share) => touched[Math.round(share * (touched.length - 1))];
+      /** How strongly a file is coloured in Auto: nothing in the middle, most at either end. */
+      const warmth = (i) => Math.max(0, (standing[i] - 0.5) * 2) ** 1.7;
+      const chill = (i) => Math.max(0, (0.5 - standing[i]) * 2) ** 1.7;
+      /** A file is new, and not only changed, when it first appeared within the warmest fifth of that scale. */
+      const isNew = (f, i) => warmth(i) > 0 && f.birth >= touchedAt(0.8);
+
+      const ranked = (value) => {
+        const order = files.map((f, i) => [value(f), i]).sort((a, b) => a[0] - b[0]);
+        const rank = new Float32Array(files.length);
+        order.forEach(([, i], place) => (rank[i] = files.length > 1 ? place / (files.length - 1) : 1));
+        return rank;
+      };
+      const byAge = ranked((f) => f.birth);
+      const mostCommits = files.reduce((top, f) => Math.max(top, f.commits), 1);
+      const tally = (key) => {
+        const seen = new Map();
+        for (const f of files) seen.set(key(f), (seen.get(key(f)) ?? 0) + 1);
+        const top = [...seen].sort((a, b) => b[1] - a[1]);
+        return { top: top.slice(0, PALETTE.length), rest: top.slice(PALETTE.length).reduce((sum, [, n]) => sum + n, 0), index: new Map(top.slice(0, PALETTE.length).map(([name], i) => [name, i])) };
+      };
+      const authorName = (f) => (f.author < 0 ? "(not committed)" : D.authors[f.author]);
+      const kinds = tally((f) => ext(f.path));
+      const people = tally(authorName);
+
+      const C = Object.fromEntries(["card", "slab", "park", "dim", "old", "other", "accent", "hot", "fresh", "amber"].map((key) => [key, new THREE.Color(T[key])]));
+      const plain = (f) => (f.kind === "asset" ? C.park : f.kind === "generated" ? C.slab : C.card);
+      const css = (color) => "#" + color.getHexString();
+      const tmp = new THREE.Color();
+
+      /** In the Changed lens, how strongly the oldest change in the window is coloured. Anything in the window must be plain to see. */
+      const FAINTEST = 0.58;
+      const LENSES = [
+        { id: "plain", label: "Model", color: (f) => plain(f), legend: () => "" },
+        {
+          id: "recent",
+          label: "Changed",
+          color: (f, i) => {
+            if (f.dirty) return C.amber;
+            if (windowId === "auto") {
+              // Warm for lately, cold and dark for long left alone, the plain model in between.
+              if (standing[i] >= 0.5) return tmp.copy(plain(f)).lerp(isNew(f, i) ? C.fresh : C.hot, warmth(i));
+              return tmp.copy(plain(f)).lerp(C.old, chill(i) * 0.92);
+            }
+            const since = WINDOWS.find((w) => w.id === windowId).since;
+            if (f.modified < since) return plain(f);
+            const fresh = windowId === "visit" ? 1 : 1 - (NOW - f.modified) / (NOW - since);
+            return tmp.copy(plain(f)).lerp(C.hot, FAINTEST + (1 - FAINTEST) * fresh ** 0.7);
+          },
+          legend: () => {
+            const loose = sites.length ? `<li><i style="background:${css(C.amber)}"></i><span>not committed</span><em>${sites.length}</em></li>` : "";
+            if (windowId === "auto") {
+              const born = files.filter((f, i) => !f.dirty && isNew(f, i)).length;
+              // In a project a few days old every date is the same date, so say how long ago instead.
+              const when = NOW - touched[0] < 14 * DAY ? ago : (at) => new Date(at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", ...(NOW - touched[0] > 300 * DAY ? { year: "numeric" } : {}) });
+              return `<h2>Last changed · on this project's own clock</h2>
+                <div class="ramp" style="background:linear-gradient(90deg, ${css(C.old)}, ${css(C.card)} 50%, ${css(C.hot)})"></div>
+                <div class="ends"><span>${when(touched[0])}</span><span>${when(touchedAt(0.5))}</span><span>now</span></div>
+                <ul style="margin-top:8px"><li><i style="background:${css(C.hot)}"></i><span>changed lately</span><em>after ${when(touchedAt(0.8))}</em></li>
+                <li><i style="background:${css(C.fresh)}"></i><span>new file</span><em>${born}</em></li>
+                <li><i style="background:${css(C.old)}"></i><span>left alone</span><em>since ${when(touchedAt(0.2))}</em></li>${loose}</ul>`;
+            }
+            const w = WINDOWS.find((w) => w.id === windowId);
+            const n = files.filter((f) => f.modified >= w.since).length;
+            return `<h2>Changed · ${esc(w.label)}</h2><div class="ramp" style="background:linear-gradient(90deg, ${css(tmp.copy(C.card).lerp(C.hot, FAINTEST))}, ${css(C.hot)})"></div><div class="ends"><span>${day(w.since)}</span><span>now</span></div><p>${count(n, "building")} of ${files.length.toLocaleString()}.</p>${loose ? `<ul>${loose}</ul>` : ""}`;
+          },
+        },
+        {
+          id: "age",
+          label: "Age",
+          color: (f, i) => tmp.copy(C.old).lerp(plain(f), byAge[i] ** 1.4),
+          legend: () => `<h2>First appeared</h2><div class="ramp" style="background:linear-gradient(90deg, ${css(C.old)}, ${css(C.card)})"></div><div class="ends"><span>${day(Math.min(...files.map((f) => f.birth)))}</span><span>${day(Math.max(...files.map((f) => f.birth)))}</span></div><p>Dark is the old town.</p>`,
+        },
+        {
+          id: "churn",
+          label: "Churn",
+          color: (f) => tmp.copy(plain(f)).lerp(C.accent, Math.log1p(f.commits) / Math.log1p(mostCommits)),
+          legend: () => `<h2>Times changed</h2><div class="ramp" style="background:linear-gradient(90deg, ${css(C.card)}, ${css(C.accent)})"></div><div class="ends"><span>once</span><span>${count(mostCommits, "commit")}</span></div>`,
+        },
+        { id: "type", label: "Type", color: (f) => PALETTE[kinds.index.get(ext(f.path))] ?? C.other, legend: () => swatches("File type", kinds) },
+        { id: "who", label: "Who", color: (f) => PALETTE[people.index.get(authorName(f))] ?? C.other, legend: () => swatches("Mostly written by", people) },
+      ];
+      const swatches = (title, t) =>
+        `<h2>${title}</h2><ul>${t.top.map(([name, n], i) => `<li><i style="background:${css(PALETTE[i])}"></i><span>${esc(name)}</span><em>${n}</em></li>`).join("")}${t.rest ? `<li><i style="background:${css(C.other)}"></i><span>everything else</span><em>${t.rest}</em></li>` : ""}</ul>`;
+
+      let lens = LENSES[0];
+      let picked = null; // the building whose card is open
+      let wanted = null; // the files a search matches, or null for no search
+      const shade = new THREE.Color();
+      function paint() {
+        files.forEach((f, i) => {
+          shade.copy(lens.color(f, i));
+          if (wanted && !wanted.has(f)) shade.lerp(C.dim, 0.88);
+          if (f === picked) shade.copy(C.accent);
+          for (let k = 0; k < f.floors.length; k++) town.setColorAt(f.first + k, shade);
+        });
+        town.instanceColor.needsUpdate = true;
+        const note = tallBy === "usedBy" ? `<h2>Height</h2><p>How many files import each one. Not its length.</p>` : "";
+        $("legend").innerHTML = (wanted ? `<h2>Found</h2><p>${count(wanted.size, "file")} matching.</p>` : "") + lens.legend() + note;
+        for (const b of $("lenses").children) b.setAttribute("aria-pressed", String(b.dataset.id === lens.id));
+        $("windows").style.display = lens.id === "recent" ? "flex" : "none";
+        for (const b of $("windows").children) b.setAttribute("aria-pressed", String(b.dataset.id === windowId));
+        for (const b of $("heights").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === tallBy));
+      }
+      const button = (parent, id, label, act) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.dataset.id = id;
+        b.textContent = label;
+        b.onclick = act;
+        parent.append(b);
+      };
+      for (const l of LENSES) button($("lenses"), l.id, l.label, () => ((lens = l), paint()));
+      for (const w of WINDOWS) button($("windows"), w.id, w.label, () => ((windowId = w.id), paint()));
+      for (const id in LANDS) button($("lands"), id, LANDS[id].label, () => land(id));
+      /** Change what height means. Nothing moves; every building grows or sinks where it stands. */
+      function measure(by) {
+        tallBy = by;
+        for (const f of files) f.goal = HEIGHTS[by].of(f);
+        paint();
+      }
+      // Only offered where there are imports to count.
+      if (files.some((f) => f.usedBy.length)) {
+        $("heights").style.display = "flex";
+        for (const id in HEIGHTS) button($("heights"), id, HEIGHTS[id].label, () => measure(id));
+      }
+
+      // ---------------------------------------------------------------- header
+      $("name").textContent = D.name;
+      const code = files.filter((f) => f.kind === "code");
+      $("sub").textContent = [D.branch && `${D.branch} @ ${D.head}`, count(files.length, "file"), `${count(code.reduce((sum, f) => sum + f.lines, 0), "line")}`, `since ${new Date(Math.min(...files.map((f) => f.birth)) * 1000).getFullYear()}`].filter(Boolean).join("  ·  ");
+      if (unread.length) {
+        $("news").style.display = "block";
+        $("news").innerHTML = `<b>${unread.length}</b> changed since you last looked, ${esc(ago(lastSeen))}`;
+        $("news").onclick = () => ((lens = LENSES[1]), (windowId = "visit"), paint());
+      }
+
+      // ---------------------------------------------------------------- labels
+      const signs = D.dirs
+        .filter((d) => d.depth <= 2)
+        .map((d) => {
+          const el = document.createElement("div");
+          el.className = "district" + (d.depth > 1 ? " minor" : "");
+          el.textContent = d.label;
+          $("labels").append(el);
+          const inside = files.filter((f) => f.path.startsWith(d.path + "/"));
+          return { d, el, inside, at: new THREE.Vector3(d.x + d.w / 2 - W / 2, 0, d.y + d.h / 2 - H / 2) };
+        });
+      const lift = () => signs.forEach((sign) => (sign.at.y = sign.inside.reduce((max, f) => Math.max(max, f.tall), 0) + 0.05 * sign.d.depth));
+      lift();
+      function label() {
+        const pxPerUnit = innerHeight / (2 * view.span);
+        for (const { d, el, at } of signs) {
+          const wide = Math.max(d.w, d.h) * pxPerUnit;
+          const show = wide > (d.depth === 1 ? 70 : 190);
+          el.style.display = show ? "block" : "none";
+          if (!show) continue;
+          v3.copy(at).project(camera);
+          el.style.left = `${((v3.x + 1) / 2) * innerWidth}px`;
+          el.style.top = `${((1 - v3.y) / 2) * innerHeight - 16}px`;
+        }
+      }
+
+      // ---------------------------------------------------------------- pointer
+      const tip = $("tip");
+      const card = $("card");
+      let drag = null;
+      /** A short list of linked files in the card, each a button that goes there. */
+      const hops = (title, list, color) => {
+        if (!list.length) return "";
+        const byName = [...list].sort((a, b) => split(files[a].path)[1].localeCompare(split(files[b].path)[1]));
+        const shown = byName.slice(0, 8).map((i) => `<button type="button" class="hop" data-i="${i}" title="${esc(files[i].path)}">${esc(split(files[i].path)[1])}</button>`).join("");
+        return `<div class="hops"><h3><i style="background:${color}"></i>${title} · ${list.length}</h3>${shown}${list.length > 8 ? `<span>+${list.length - 8} more</span>` : ""}</div>`;
+      };
+      function show(f) {
+        picked = f;
+        stand(pickPlate, f);
+        wire(f);
+        paint();
+        card.style.display = f ? "block" : "none";
+        $("help").style.visibility = f ? "hidden" : "visible"; // the card needs the room
+        if (!f) return;
+        const [dir, name] = split(f.path);
+        const what = f.kind === "asset" ? "Not text" : f.kind === "generated" ? `${count(f.lines, "line")}, written by a tool` : count(f.lines, "line");
+        card.innerHTML = `<div class="dir">${esc(dir)}</div><div class="file">${esc(name)}</div>
+          <dl><dt>Size</dt><dd>${what}</dd>
+          <dt>First appeared</dt><dd>${f.commits ? `${day(f.birth)} · ${ago(f.birth)}` : "not committed yet"}</dd>
+          <dt>Last changed</dt><dd>${f.dirty ? `<span style="color:var(--amber)">being worked on now</span>` : `${day(f.modified)} · ${ago(f.modified)}`}</dd>
+          <dt>Changed</dt><dd>${count(f.commits, "time")}</dd>
+          <dt>Mostly by</dt><dd>${esc(authorName(f))}</dd></dl>
+          ${hops("Imports", f.uses, "var(--accent)")}${hops("Imported by", f.usedBy, "#9b4dff")}
+          <div class="acts"><a href="vscode://file/${encodeURI(D.root + "/" + f.path)}">Open in VS Code</a><button type="button" id="copy">Copy path</button></div>`;
+        $("copy").onclick = () => navigator.clipboard?.writeText(f.path).then(() => ($("copy").textContent = "Copied"));
+        for (const hop of card.querySelectorAll(".hop")) hop.onclick = () => (show(files[Number(hop.dataset.i)]), flyTo(picked));
+      }
+      canvas.addEventListener("pointerdown", (e) => {
+        canvas.setPointerCapture(e.pointerId);
+        drag = { x: e.clientX, y: e.clientY, from: groundAt(e), moved: false };
+      });
+      canvas.addEventListener("pointermove", (e) => {
+        if (drag) {
+          if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 4) drag.moved = true;
+          if (drag.moved) {
+            canvas.classList.add("dragging");
+            tip.style.display = "none";
+            // Keep the piece of ground that was picked up under the pointer.
+            const now = groundAt(e);
+            view.x = goal.x = view.x + drag.from.x - now.x;
+            view.z = goal.z = view.z + drag.from.z - now.z;
+            aim();
+          }
+          return;
+        }
+        const f = fileAt(e);
+        stand(hoverPlate, f && f !== picked ? f : null);
+        canvas.classList.toggle("over", !!f);
+        tip.style.display = f ? "block" : "none";
+        if (f) {
+          const [dir, name] = split(f.path);
+          tip.innerHTML = `${esc(dir)}<b>${esc(name)}</b><small>${f.kind === "asset" ? "not text" : count(f.lines, "line")}${f.usedBy.length ? " · imported by " + f.usedBy.length : ""} · ${f.dirty ? "being worked on now" : "changed " + ago(f.modified)}</small>`;
+          tip.style.left = `${Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8)}px`;
+          tip.style.top = `${Math.max(8, e.clientY - tip.offsetHeight - 12)}px`;
+        }
+      });
+      canvas.addEventListener("pointerup", (e) => {
+        canvas.classList.remove("dragging");
+        if (drag && !drag.moved) show(fileAt(e));
+        drag = null;
+      });
+      canvas.addEventListener("dblclick", (e) => {
+        const f = fileAt(e);
+        if (f) location.href = `vscode://file/${encodeURI(D.root + "/" + f.path)}`;
+      });
+      canvas.addEventListener("pointerleave", () => ((tip.style.display = "none"), stand(hoverPlate, null)));
+      canvas.addEventListener(
+        "wheel",
+        (e) => {
+          e.preventDefault();
+          const before = groundAt(e);
+          view.span = goal.span = Math.max(4, Math.min(fit() * 2.5, view.span * Math.exp(e.deltaY * 0.0015)));
+          aim();
+          const after = groundAt(e);
+          view.x = goal.x = view.x + before.x - after.x;
+          view.z = goal.z = view.z + before.z - after.z;
+        },
+        { passive: false },
+      );
+
+      // ---------------------------------------------------------------- keys and search
+      const search = $("search");
+      search.addEventListener("input", () => {
+        const words = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        wanted = words.length ? new Set(files.filter((f) => words.every((w) => f.path.toLowerCase().includes(w)))) : null;
+        paint();
+      });
+      search.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && wanted?.size) {
+          // The shortest path that matches is usually the one that was meant.
+          const best = [...wanted].sort((a, b) => a.path.length - b.path.length)[0];
+          show(best);
+          flyTo(best);
+        }
+        if (e.key === "Escape") (search.value = ""), search.dispatchEvent(new Event("input")), search.blur();
+      });
+      addEventListener("keydown", (e) => {
+        if (e.target === search || e.metaKey || e.ctrlKey || e.altKey) return;
+        if (e.key === "/") e.preventDefault(), search.focus();
+        if (e.key === "q" || e.key === "Q") goal.turn -= Math.PI / 2;
+        if (e.key === "e" || e.key === "E") goal.turn += Math.PI / 2;
+        if (e.key === "Escape") show(null);
+        if (e.key === "0") Object.assign(goal, { x: 0, z: 0, span: fit() });
+        if (e.key === "l" || e.key === "L") (linksOn = !linksOn), wire(picked);
+        if ((e.key === "h" || e.key === "H") && $("heights").style.display === "flex") measure(tallBy === "lines" ? "usedBy" : "lines");
+        if (e.key === "t" || e.key === "T") land(Object.keys(LANDS)[(Object.keys(LANDS).indexOf(T.id) + 1) % Object.keys(LANDS).length]);
+        const n = Number(e.key);
+        if (n >= 1 && n <= LENSES.length) (lens = LENSES[n - 1]), paint();
+      });
+
+      // ---------------------------------------------------------------- go
+      resize();
+      let stored = null;
+      try {
+        stored = localStorage.getItem("repocity:land");
+      } catch {
+        /* storage switched off */
+      }
+      land(D.land ?? stored ?? "plain");
+      let last = performance.now();
+      let wasGrowing = false;
+      renderer.setAnimationLoop((t) => {
+        const ease = 1 - Math.exp(-(t - last) / 110);
+        last = t;
+        let moving = false;
+        for (const key of ["x", "z", "turn", "span"]) {
+          const gap = goal[key] - view[key];
+          if (Math.abs(gap) > 1e-4) (view[key] += gap * ease), (moving = true);
+        }
+        if (moving) aim();
+        let growing = false;
+        for (const f of files) {
+          const gap = f.goal - f.tall;
+          if (Math.abs(gap) > 0.01) (f.tall += gap * ease * 0.6), (growing = true);
+          else if (gap) (f.tall = f.goal), (growing = true);
+        }
+        if (growing) raise(), lift(), stand(pickPlate, picked);
+        else if (wasGrowing) wire(picked); // the lines go to the roofs, so draw them again once the roofs have stopped
+        wasGrowing = growing;
+        const beat = 0.5 + 0.5 * Math.sin(t / 380);
+        sites.forEach((f, i) => put(lamps, i, f.cx, f.base + f.tall + 0.25 + beat * 0.35, f.cz, 0.55, 0.55, 0.55));
+        if (sites.length) lamps.instanceMatrix.needsUpdate = true;
+        label();
+        renderer.render(scene, camera);
+      });
+    </script>
+  </body>
+</html>
