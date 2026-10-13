@@ -1,6 +1,6 @@
 name: Site
 
-# The page at icydotdev.github.io/codecity, with a live map of the React repository
+# The page at codecity.icy.dev, with a live map of the React repository
 # drawn by the version of codecity in this commit.
 
 on:

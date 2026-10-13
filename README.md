@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://icydotdev.github.io/codecity/"><strong>Live demo</strong></a> · <a href="#quick-start">Quick Start</a> · <a href="#what-it-shows">What It Shows</a> · <a href="#usage">Usage</a> · <a href="#how-it-works">How It Works</a> · <a href="#limitations">Limitations</a>
+  <a href="https://codecity.icy.dev/"><strong>Live demo</strong></a> · <a href="#quick-start">Quick Start</a> · <a href="#what-it-shows">What It Shows</a> · <a href="#usage">Usage</a> · <a href="#how-it-works">How It Works</a> · <a href="#limitations">Limitations</a>
 </p>
 
 ---
