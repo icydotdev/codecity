@@ -63,8 +63,6 @@ const LANDS = {
   plain: matchMedia("(prefers-color-scheme: dark)").matches
     ? { label: "Plain", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1 }
     : { label: "Plain", ground: 0xd2d7dd, plates: [0xe2e5e9, 0xeaecef, 0xf1f2f4], park: 0xc2d6c6, dim: 0xd6dadf },
-  // Navy, a drawing-office grid, ruled outlines and nothing else: the one to put in front of a board.
-  corporate: { label: "Corporate", ui: "dark", ground: 0x14254a, plates: [0x1d3463, 0x264177, 0x304e8a], slab: 0x8492ab, park: 0x4a7fc4, dim: 0x22345c, old: 0x5d6c8d, other: 0x6b7890, accent: 0x7fa2ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d },
   beach: { label: "Beach", ground: 0x7fc4d0, plates: [0xf1e2bd, 0xf5ead0, 0xf8f1e0], park: 0xf3b89a, dim: 0xe3d3a8 },
 };
 for (const id in LANDS) LANDS[id] = { ...DAYLIGHT, ...LANDS[id], id };
@@ -151,9 +149,14 @@ const stand = (plate, f) => {
 // What height means. Usually a building is as tall as its file is long. It can be asked to show how
 // many files import it instead: same town, same places, and the huts everything leans on become towers.
 const flat = (f) => (f.kind === "asset" ? 0.22 : f.kind === "generated" ? 0.5 : 0);
+// Height grows faster than a square root, which squeezed a 100-line file and a 600-line file into
+// much the same building: a town of one height tells nothing. Past TOWER a building keeps growing
+// but slowly, so one enormous file cannot make the camera pull back until the rest are specks.
+const TOWER = 42;
+const capped = (h) => (h <= TOWER ? h : TOWER + (h - TOWER) * 0.3);
 const HEIGHTS = {
-  lines: { label: "Lines", of: (f, lines = f.lines) => flat(f) || Math.max(0.7, 0.45 * Math.sqrt(lines)) },
-  usedBy: { label: "Imported by", of: (f) => flat(f) || 0.5 + 3.2 * Math.sqrt(f.usedBy.length) },
+  lines: { label: "Lines", of: (f, lines = f.lines) => flat(f) || capped(Math.max(0.5, 0.16 * lines ** 0.7)) },
+  usedBy: { label: "Imported by", of: (f) => flat(f) || capped(0.4 + 2.4 * f.usedBy.length ** 0.85) },
 };
 /** How long a file was at a moment in the history. Its log is time, lines, time, lines, oldest first. */
 const linesAt = (f, moment) => {
@@ -177,8 +180,6 @@ function pave() {
     put(plates, i, d.x + d.w / 2 - W / 2, 0, d.y + d.h / 2 - H / 2, d.w * there, 0.05 * d.depth * there, d.h * there);
   });
   plates.instanceMatrix.needsUpdate = true;
-  // The ruled outlines of the Corporate land are a plan of the finished town, so they wait for today.
-  for (const group of built.values()) for (const line of group.userData.outlines ?? []) line.visible = clock === null;
   renderer.shadowMap.needsUpdate = true;
 }
 
@@ -280,11 +281,20 @@ function pieces() {
     },
   };
 }
+/** How round the corners of a field are. */
+const cornerOf = (grow) => Math.min(W, H) * 0.16 + grow;
+/** Whether a point (in the scene's coordinates) is on the field that reaches `grow` beyond the town. */
+function onField(x, z, grow) {
+  const r = cornerOf(grow);
+  const dx = Math.max(Math.abs(x) - (W / 2 + grow - r), 0);
+  const dz = Math.max(Math.abs(z) - (H / 2 + grow - r), 0);
+  return Math.hypot(dx, dz) <= r;
+}
 /** A rounded piece of ground, the size of the town and `grow` more all round: the island, and the water round it. */
 function field(group, grow, y, hex) {
   const w = W / 2 + grow;
   const h = H / 2 + grow;
-  const r = Math.min(W, H) * 0.16 + grow;
+  const r = cornerOf(grow);
   const shape = new THREE.Shape().moveTo(-w + r, -h).lineTo(w - r, -h).absarc(w - r, -h + r, r, -Math.PI / 2, 0).lineTo(w, h - r).absarc(w - r, h - r, r, 0, Math.PI / 2).lineTo(-w + r, h).absarc(-w + r, h - r, r, Math.PI / 2, Math.PI).lineTo(-w, -h + r).absarc(-w + r, -h + r, r, Math.PI, Math.PI * 1.5);
   const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape, 16).rotateX(-Math.PI / 2), matte(hex));
   mesh.position.y = y;
@@ -292,31 +302,6 @@ function field(group, grow, y, hex) {
   group.add(mesh);
 }
 const SCENERY = {
-  corporate() {
-    const group = new THREE.Group();
-    // A ruled ground, fine and then every fifth line heavier, like the paper a plan is drawn on.
-    const size = Math.ceil((reach * 5) / 50) * 50;
-    for (const [every, opacity] of [[2.5, 0.16], [12.5, 0.34]]) {
-      const grid = new THREE.GridHelper(size, size / every, 0x9db7ff, 0x9db7ff);
-      Object.assign(grid.material, { transparent: true, opacity, depthWrite: false });
-      grid.position.y = 0.012;
-      group.add(grid);
-    }
-    // Every district outlined, the way a site plan marks a boundary.
-    for (const [depth, opacity] of [[1, 0.75], [2, 0.38]]) {
-      const corners = [];
-      for (const d of D.dirs.filter((dir) => dir.depth === depth)) {
-        const [x0, x1, z0, z1, y] = [d.x - W / 2, d.x + d.w - W / 2, d.y - H / 2, d.y + d.h - H / 2, 0.05 * depth + 0.012];
-        corners.push(x0, y, z0, x1, y, z0, x1, y, z0, x1, y, z1, x1, y, z1, x0, y, z1, x0, y, z1, x0, y, z0);
-      }
-      const outline = new THREE.BufferGeometry();
-      outline.setAttribute("position", new THREE.Float32BufferAttribute(corners, 3));
-      const line = new THREE.LineSegments(outline, new THREE.LineBasicMaterial({ color: 0xc9d8ff, transparent: true, opacity }));
-      (group.userData.outlines ??= []).push(line);
-      group.add(line);
-    }
-    return group;
-  },
   beach() {
     const s = pieces();
     const shore = 9;
@@ -327,6 +312,9 @@ const SCENERY = {
     // On a very big island a palm for every gap would be a forest, so they thin out as the town grows.
     const thin = Math.min(1, 9000 / (W * H));
     for (const p of spots(3.1, shore - 1.5)) {
+      // The island's corners are round and the grid of spots is square: a spot out past a corner is
+      // in the water. Nothing is planted there, with room left for a palm's fronds.
+      if (!onField(p.x, p.z, shore - 1.3)) continue;
       if (p.r(0) > (p.out === 0 ? 0.14 * thin : 0.5)) continue;
       if (p.out > 2 && p.r(1) < 0.3) {
         // A parasol.
@@ -495,7 +483,7 @@ const swatches = (title, t) =>
   `<h2>${title}</h2><ul>${t.top.map(([name, n], i) => `<li><i style="background:${css(PALETTE[i])}"></i><span>${esc(name)}</span><em>${n}</em></li>`).join("")}${t.rest ? `<li><i style="background:${css(C.other)}"></i><span>everything else</span><em>${t.rest}</em></li>` : ""}</ul>`;
 
 const LENSES = [
-  { id: "plain", label: "Model", color: (f) => plain(f), legend: () => "" },
+  { id: "plain", label: "None", color: (f) => plain(f), legend: () => "" },
   {
     id: "recent",
     label: "Changed",
@@ -544,7 +532,8 @@ const LENSES = [
   { id: "type", label: "Type", color: (f) => PALETTE[kinds.index.get(ext(f.path))] ?? C.other, legend: () => swatches("File type", kinds) },
   { id: "who", label: "Who", color: (f) => PALETTE[people.index.get(authorName(f))] ?? C.other, legend: () => swatches("Mostly written by", people) },
 ];
-let lens = LENSES[0];
+// The map opens coloured by what changed, on the project's own clock: the most useful thing it can say.
+let lens = LENSES[1];
 
 /** In the history, a building is warm while it was lately built or changed, as of the day being shown. */
 const eraWindow = () => moments[Math.max(0, Math.round(playhead) - Math.max(2, Math.ceil(moments.length * 0.03)))];
@@ -574,9 +563,9 @@ function paint() {
   const era = clock === null ? "" : `<h2>History</h2><p>${count(files.filter((f) => f.birth <= clock).length, "building")} of ${files.length.toLocaleString()} standing.</p><ul><li><i style="background:${css(C.fresh)}"></i><span>just built</span></li><li><i style="background:${css(C.hot)}"></i><span>just changed</span></li></ul>${D.quick ? "<p>This history is too long to measure, so buildings appear at the size they are today.</p>" : ""}`;
   const note = clock === null && tallBy === "usedBy" ? `<h2>Height</h2><p>How many files import each one. Not its length.</p>` : "";
   $("legend").innerHTML = found + (clock === null ? lens.legend() : era) + note;
-  for (const b of $("lenses").children) b.setAttribute("aria-pressed", String(clock === null && b.dataset.id === lens.id));
+  for (const b of $("lenses").querySelectorAll("button")) b.setAttribute("aria-pressed", String(clock === null && b.dataset.id === lens.id));
   $("windows").style.display = clock === null && lens.id === "recent" ? "flex" : "none";
-  for (const b of $("windows").children) b.setAttribute("aria-pressed", String(b.dataset.id === windowId)), (b.hidden = b.dataset.id === "visit" && !lastSeen);
+  for (const b of $("windows").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === windowId)), (b.hidden = b.dataset.id === "visit" && !lastSeen);
   for (const b of $("heights").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === tallBy));
   $("heights").style.display = clock === null && files.some((f) => f.usedBy.length) ? "flex" : "none";
 }

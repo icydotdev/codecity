@@ -64,8 +64,8 @@
       button:focus-visible, #search:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
       #windows { display: none; }
       #heights { display: none; }
-      #heights span { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); padding: 8px 4px 8px 10px; }
-      #heights span + button { border-left: 0; }
+      .row > span { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); padding: 8px 4px 8px 10px; white-space: nowrap; }
+      .row > span + button { border-left: 0; }
 
       #legend { position: fixed; right: 20px; bottom: 54px; min-width: 210px; max-width: 310px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
       #legend:empty { display: none; }
@@ -122,8 +122,8 @@
     </header>
     <div id="tools">
       <input id="search" type="search" placeholder="Find a file  ( / )" autocomplete="off" spellcheck="false" aria-label="Find a file" />
-      <div class="row" id="lenses" role="group" aria-label="Colour the map by"></div>
-      <div class="row" id="windows" role="group" aria-label="Changed within"></div>
+      <div class="row" id="lenses" role="group" aria-label="Colour the map by"><span>Colour</span></div>
+      <div class="row" id="windows" role="group" aria-label="Changed within"><span>Changed in</span></div>
       <div class="row" id="heights" role="group" aria-label="Height shows"><span>Height</span></div>
       <div class="row"><button type="button" id="era" aria-pressed="false">History</button></div>
     </div>

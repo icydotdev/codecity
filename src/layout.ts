@@ -14,8 +14,9 @@
 // afresh. The steps are far apart, so this is rare.
 //
 // Every building's footprint is its own: a square whose area goes with the
-// square root of the file's length (as its height does, so its volume is its
-// length). Nothing is stretched to fill a gap, which is why there are yards.
+// square root of the file's length. (Its height, which the viewer decides,
+// grows faster than that.) Nothing is stretched to fill a gap, which is why
+// there are yards.
 
 /** What the layout needs to know about a file. */
 export interface Plotted {

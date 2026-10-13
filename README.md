@@ -65,7 +65,7 @@ The layout is deterministic and stable. A building moves only when something pla
 | Property | Meaning |
 |---|---|
 | Position | The file's folder, and when the file first appeared |
-| Footprint and height | File length. Both scale with the square root of the line count, so volume is proportional to length |
+| Footprint and height | File length. The footprint grows with the square root of the line count. Height grows faster, so long files stand well clear of short ones |
 | Outline | The shape of the code. Each floor is about sixty lines and is as wide as those lines are long, so files that follow the same pattern look alike |
 | Flat grey slab | A generated file, such as a lockfile |
 | Flat tile | A binary file, such as an image or font |
@@ -128,8 +128,8 @@ Playback advances by event, not by calendar time, so periods of inactivity are s
 
 | View | Colours each file by |
 |---|---|
-| Model | Nothing. The plain model |
-| Changed | How recently it was modified |
+| None | No colouring. The plain model |
+| Changed | How recently it was modified. This is the view the map opens on |
 | Age | When it first appeared |
 | Churn | How many commits have touched it |
 | Type | File extension |
@@ -139,7 +139,7 @@ A view only ever changes colour. Position and shape always mean the same thing.
 
 ### Themes
 
-Three themes are included: **Plain**, **Corporate** and **Beach**. A theme changes the ground the map stands on. It never changes the buildings or the lighting, so colours mean the same thing in every theme.
+Two themes are included: **Plain** and **Beach**. A theme changes the ground the map stands on. It never changes the buildings or the lighting, so colours mean the same thing in every theme.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/icydotdev/codecity/main/assets/screenshot-plain.jpg" width="400" alt="Plain theme" />
@@ -154,7 +154,7 @@ codecity [folder] [options]
   -w, --watch       Keep the map open and update it as files change
   --port <number>   Port for --watch (default: 3737)
   -o <file>         Where to write the map (default: a temporary folder)
-  --land <name>     Theme: plain, corporate, beach
+  --land <name>     Theme: plain, beach
   --no-browser      Don't open the browser automatically
   -h, --help        Show this help message
 ```
