@@ -61,8 +61,8 @@ const wake = () => (frames = 3);
 const DAYLIGHT = { ui: "light", card: 0xfbfbfc, slab: 0xbcc3cb, old: 0x4a5670, other: 0xaab2bc, accent: 0x1f4bff, hot: 0xff4f2e, fresh: 0x0fa97c, amber: 0xf59a00, bounce: 0xd2d7dd, sun: 2.0, air: 1.5 };
 const LANDS = {
   plain: matchMedia("(prefers-color-scheme: dark)").matches
-    ? { label: "Plain", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1 }
-    : { label: "Plain", ground: 0xd2d7dd, plates: [0xe2e5e9, 0xeaecef, 0xf1f2f4], park: 0xc2d6c6, dim: 0xd6dadf },
+    ? { label: "Plain", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, base: 0x1c2129, rim: 0x39424f, halo: 0x10141a, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1 }
+    : { label: "Plain", ground: 0xd2d7dd, plates: [0xe2e5e9, 0xeaecef, 0xf1f2f4], park: 0xc2d6c6, dim: 0xd6dadf, base: 0xdde1e6, rim: 0xffffff, halo: 0xc3c9d1 },
   beach: { label: "Beach", ground: 0x7fc4d0, plates: [0xf1e2bd, 0xf5ead0, 0xf8f1e0], park: 0xf3b89a, dim: 0xe3d3a8 },
 };
 for (const id in LANDS) LANDS[id] = { ...DAYLIGHT, ...LANDS[id], id };
@@ -302,6 +302,16 @@ function field(group, grow, y, hex) {
   group.add(mesh);
 }
 const SCENERY = {
+  plain() {
+    // The town stands on a board, as a model does: a soft shadow, a bright edge, then the board
+    // itself. It gives the map an end, which bare ground running off in every direction did not.
+    const group = new THREE.Group();
+    const edge = 6;
+    field(group, edge + 1.6, 0.008, LANDS.plain.halo);
+    field(group, edge + 0.28, 0.016, LANDS.plain.rim);
+    field(group, edge, 0.024, LANDS.plain.base);
+    return group;
+  },
   beach() {
     const s = pieces();
     const shore = 9;
