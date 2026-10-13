@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>codecity: a 3D map of your codebase</title>
+    <meta name="description" content="codecity renders any git repository as a 3D map, one building per file. It runs locally with one command and updates as you work." />
+    <meta property="og:title" content="codecity: a 3D map of your codebase" />
+    <meta property="og:description" content="One building per file. Colour by what changed, see what depends on what, play the history. Runs locally with one command." />
+    <meta property="og:image" content="https://icydotdev.github.io/codecity/assets/screenshot-changed.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="assets/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      /* The page is drawn the way the map is: an architect's site model. Card and ink, capitals for
+         labels, and colour spent only where it says something. */
+      :root {
+        --paper: #dfe3e8;
+        --card: #f6f7f9;
+        --ink: #12161b;
+        --soft: #56616e;
+        --line: rgba(18, 22, 27, 0.16);
+        --hot: #ff4f2e;
+        --fresh: #0fa97c;
+        --accent: #1f4bff;
+        --label: "Barlow Condensed", "Avenir Next Condensed", "Arial Narrow", sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+        --text: "IBM Plex Sans", system-ui, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 var(--text); -webkit-font-smoothing: antialiased; }
+      a { color: inherit; }
+      a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+      /* Top */
+      .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 0; }
+      .mark { display: flex; align-items: center; gap: 10px; font: 600 22px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; }
+      .mark img { width: 26px; height: 26px; }
+      .top nav { display: flex; gap: 22px; font: 500 13px/1 var(--mono); }
+      .top nav a { text-decoration: none; color: var(--soft); }
+      .top nav a:hover { color: var(--ink); }
+
+      /* Hero */
+      .hero { padding: 44px 0 26px; }
+      h1 { margin: 0; max-width: 15ch; font: 600 clamp(44px, 8.2vw, 104px)/0.94 var(--label); letter-spacing: 0.01em; text-transform: uppercase; }
+      h1 em { font-style: normal; color: var(--hot); }
+      .lede { max-width: 56ch; margin: 22px 0 0; font-size: 19px; color: #2a323c; }
+      .run { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
+      .cmd { display: inline-flex; align-items: center; gap: 14px; padding: 13px 14px 13px 18px; background: var(--ink); color: #fff; border-radius: 3px; font: 500 17px/1 var(--mono); }
+      .cmd span::before { content: "$ "; color: #7f8b99; }
+      .cmd button { font: 600 12px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); background: #fff; border: 0; border-radius: 2px; padding: 7px 9px; cursor: pointer; min-width: 62px; }
+      .ghost { font: 600 13px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; padding: 16px 16px; border: 1px solid var(--ink); border-radius: 3px; }
+      .ghost:hover { background: var(--ink); color: #fff; }
+      .facts { margin: 18px 0 0; font: 13px/1.5 var(--mono); color: var(--soft); }
+
+      /* The live map */
+      .stage { margin: 34px 0 0; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; background: var(--card); box-shadow: 0 30px 60px -30px rgba(18, 22, 27, 0.45); }
+      .stage .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 9px 14px; border-bottom: 1px solid var(--line); font: 12px/1.3 var(--mono); color: var(--soft); }
+      .stage .bar b { color: var(--ink); font-weight: 500; }
+      .stage .bar a { color: var(--ink); }
+      .stage .view { position: relative; aspect-ratio: 16 / 9.4; background: var(--paper); }
+      .stage iframe, .stage .still { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+      .stage .still { object-fit: cover; }
+      .stage .open { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); }
+      .stage .open a { display: inline-block; white-space: nowrap; font: 600 13px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: #fff; background: var(--ink); padding: 13px 16px; border-radius: 3px; }
+
+      /* Section headings are the map's own district labels: capitals over a rule, with a leader down. */
+      section { padding: 78px 0 0; }
+      h2 { position: relative; display: inline-block; margin: 0 0 34px; padding-bottom: 8px; font: 600 15px/1 var(--label); letter-spacing: 0.2em; text-transform: uppercase; border-bottom: 1px solid var(--ink); }
+      h2::after { content: ""; position: absolute; left: 24px; top: 100%; width: 1px; height: 18px; background: var(--ink); }
+      h3 { margin: 0 0 8px; font: 600 30px/1.05 var(--label); letter-spacing: 0.02em; text-transform: uppercase; }
+      p { margin: 0 0 12px; }
+
+      /* How to read it: a key, as on a drawing */
+      .key { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--ink); background: var(--card); }
+      .key div { padding: 20px 20px 22px; border-left: 1px solid var(--line); }
+      .key div:first-child { border-left: 0; }
+      .key dt { font: 600 13px/1 var(--label); letter-spacing: 0.18em; text-transform: uppercase; color: var(--soft); }
+      .key dd { margin: 10px 0 0; font-size: 16px; line-height: 1.45; }
+      .key b { font-weight: 500; }
+
+      /* Features */
+      .feature { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 44px; align-items: center; padding: 0 0 62px; }
+      .feature.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+      .feature.flip .words { order: 2; }
+      .feature img { width: 100%; height: auto; display: block; border: 1px solid var(--ink); border-radius: 3px; background: var(--card); }
+      .feature ul { margin: 12px 0 0; padding: 0; list-style: none; }
+      .feature li { position: relative; padding: 5px 0 5px 20px; font-size: 16px; line-height: 1.45; }
+      .feature li::before { content: ""; position: absolute; left: 0; top: 13px; width: 9px; height: 9px; background: var(--ink); }
+      .feature li.hot::before { background: var(--hot); }
+      .feature li.fresh::before { background: var(--fresh); }
+      .feature li.old::before { background: #4a5670; }
+      .feature li.amber::before { background: #f59a00; }
+      .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+      /* Start */
+      .start { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 44px; align-items: start; }
+      pre { margin: 0; padding: 20px 22px; background: var(--ink); color: #e8ecf1; border-radius: 3px; font: 14.5px/1.75 var(--mono); overflow-x: auto; }
+      pre i { font-style: normal; color: #7f8b99; }
+      .langs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+      .langs li { font: 500 12px/1 var(--mono); padding: 7px 9px; border: 1px solid var(--line); border-radius: 2px; background: var(--card); }
+
+      footer { margin-top: 84px; padding: 26px 0 40px; border-top: 1px solid var(--ink); font: 13px/1.7 var(--mono); color: var(--soft); }
+      footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 30px; }
+      footer p { margin: 0; max-width: 62ch; }
+
+      @media (max-width: 860px) {
+        body { font-size: 16px; }
+        .hero { padding-top: 26px; }
+        .key { grid-template-columns: 1fr 1fr; }
+        .key div:nth-child(3) { border-left: 0; }
+        .key div:nth-child(n + 3) { border-top: 1px solid var(--line); }
+        .feature, .feature.flip, .start { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+        .feature.flip .words { order: 0; }
+        section { padding-top: 58px; }
+      }
+      @media (max-width: 480px) {
+        .wrap { padding: 0 16px; }
+        .top nav { gap: 14px; }
+        .key { grid-template-columns: 1fr; }
+        .key div { border-left: 0; border-top: 1px solid var(--line); }
+        .key div:first-child { border-top: 0; }
+        .cmd { font-size: 15px; }
+      }
+      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <a class="mark" href="./"><img src="assets/logo.svg" alt="" />codecity</a>
+        <nav>
+          <a href="#read">How to read it</a>
+          <a href="https://github.com/icydotdev/codecity">GitHub</a>
+          <a href="https://www.npmjs.com/package/codecity">npm</a>
+        </nav>
+      </header>
+
+      <main>
+        <div class="hero">
+          <h1>See your codebase <em>from above</em></h1>
+          <p class="lede">codecity draws any git repository as a 3D map, one building per file. Colour it by what changed, follow what depends on what, and play its history from the first commit. It runs on your machine with one command and keeps up as you work.</p>
+          <div class="run">
+            <div class="cmd"><span id="cmd">npx codecity</span><button type="button" id="copy">Copy</button></div>
+            <a class="ghost" href="demo/react.html">Open the React map</a>
+          </div>
+          <p class="facts">Free and open source. Nothing leaves your machine. Needs git and Node 20 or later.</p>
+
+          <div class="stage">
+            <div class="bar">
+              <span><b>facebook/react</b>, drawn by codecity. Drag to move, scroll to zoom, click a building.</span>
+              <a href="demo/react.html">Open full screen</a>
+            </div>
+            <div class="view" id="view">
+              <img class="still" src="assets/screenshot-changed.jpg" alt="A repository of 6,000 files drawn as a city, with recently changed files in red" />
+              <div class="open"><a href="demo/react.html">Open the live React map</a></div>
+            </div>
+          </div>
+        </div>
+
+        <section id="read">
+          <h2>How to read it</h2>
+          <dl class="key">
+            <div><dt>A building</dt><dd>is <b>one file</b>. Hover for its name, click for its details and its imports.</dd></div>
+            <div><dt>Its size</dt><dd>is the file's <b>length</b>. Long files are wide and tall. Or switch height to how many files import it.</dd></div>
+            <div><dt>A district</dt><dd>is <b>a folder</b>. Folders inside folders are raised plots inside plots.</dd></div>
+            <div><dt>Its colour</dt><dd>is whatever you ask: <b>what changed</b>, age, churn, file type or author.</dd></div>
+          </dl>
+        </section>
+
+        <section>
+          <h2>What it shows</h2>
+
+          <div class="feature">
+            <div class="words">
+              <h3>What changed, and what was left alone</h3>
+              <p>The map opens coloured by how recently each file was touched, on a scale taken from the project's own history. It reads the same on a repository a week old and one ten years old.</p>
+              <ul>
+                <li class="hot">Changed lately</li>
+                <li class="fresh">New files</li>
+                <li class="amber">Uncommitted work</li>
+                <li class="old">Long left alone</li>
+              </ul>
+            </div>
+            <img src="assets/screenshot-changed.jpg" alt="Files coloured by how recently they changed" loading="lazy" />
+          </div>
+
+          <div class="feature flip">
+            <div class="words">
+              <h3>What your last pull brought in</h3>
+              <p>After a <code>git pull</code>, one click shows exactly the files it changed. This comes from git's own record of where you were before the pull, so it is right even when the commits were written days ago.</p>
+              <p>The same goes for your own absence: the map remembers when you last looked and shows what moved since.</p>
+            </div>
+            <img src="assets/screenshot-pull.jpg" alt="The files changed by the last pull, highlighted, with a notice saying how many" loading="lazy" />
+          </div>
+
+          <div class="feature">
+            <div class="words">
+              <h3>What depends on what</h3>
+              <p>Click a building to draw its imports and the files that import it. Switch height to <em>imported by</em> and the small files everything leans on become towers.</p>
+              <ul class="langs" aria-label="Languages whose imports are read">
+                <li>TypeScript</li><li>JavaScript</li><li>Python</li><li>Go</li><li>Rust</li><li>Java</li><li>Kotlin</li><li>C and C++</li>
+              </ul>
+            </div>
+            <img src="assets/dependencies.gif" alt="Selecting a file draws arcs to its imports and to the files that import it" loading="lazy" />
+          </div>
+
+          <div class="feature flip">
+            <div class="words">
+              <h3>How it got here</h3>
+              <p>Play the timeline and the city is built again from the first commit: districts appear with their first file, buildings rise as files grow, and each change flashes as it lands.</p>
+            </div>
+            <img src="assets/history.gif" alt="A repository growing from its first commit to the present day" loading="lazy" />
+          </div>
+
+          <div class="feature">
+            <div class="words">
+              <h3>Live, while you and your agents work</h3>
+              <p>Leave it open on a second screen. A saved file lights up within a second, and a new file rises from the ground where it belongs. When several coding agents are editing at once, you can see where they are.</p>
+              <p>Three themes: light, dark, and a beach for Fridays. A building's colour means the same in each.</p>
+            </div>
+            <div class="pair">
+              <img src="assets/screenshot-plain.jpg" alt="The light theme" loading="lazy" />
+              <img src="assets/screenshot-beach.jpg" alt="The beach theme" loading="lazy" />
+            </div>
+          </div>
+        </section>
+
+        <section id="start" style="padding-top: 16px">
+          <h2>Start</h2>
+          <div class="start">
+            <pre><i># in any git repository: opens the live map</i>
+npx codecity
+
+<i># another folder, or a different port</i>
+npx codecity ../some-repo --port 4000
+
+<i># one self-contained HTML file, to keep or to share</i>
+npx codecity -o map.html</pre>
+            <div>
+              <h3>Local by design</h3>
+              <p>codecity reads your working tree and your git history on your own machine. The page it builds contains everything it needs and makes no network requests. There is no account and nothing to configure.</p>
+              <p>The single-file output works offline. Attach it to a pull request or send it to a colleague.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer>
+      <div class="wrap">
+        <p>codecity is MIT licensed. The idea of drawing software as a city comes from CodeCity, by Richard Wettel and Michele Lanza (2007).</p>
+        <p>Made by <a href="https://icy.dev/sam">Sam Kavanagh</a>. <a href="https://github.com/icydotdev/codecity">Source on GitHub</a>.</p>
+      </div>
+    </footer>
+
+    <script>
+      // The command, copied.
+      const copy = document.getElementById("copy");
+      copy.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(document.getElementById("cmd").textContent);
+          copy.textContent = "Copied";
+        } catch {
+          copy.textContent = "Select it";
+        }
+        setTimeout(() => (copy.textContent = "Copy"), 1600);
+      };
+      // The live map is a few megabytes of page and a 3D scene: worth it on a screen with room and a
+      // pointer to drive it, and after everything else has loaded. A phone gets the picture and a link.
+      const view = document.getElementById("view");
+      if (matchMedia("(min-width: 860px) and (pointer: fine)").matches)
+        addEventListener("load", () => {
+          const frame = Object.assign(document.createElement("iframe"), { src: "demo/react.html", title: "A live codecity map of the React repository", loading: "lazy" });
+          frame.onload = () => view.querySelectorAll(".still, .open").forEach((el) => el.remove());
+          view.append(frame);
+        });
+    </script>
+  </body>
+</html>

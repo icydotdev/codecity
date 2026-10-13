@@ -1,0 +1,57 @@
+name: Site
+
+# The page at icydotdev.github.io/codecity, with a live map of the React repository
+# drawn by the version of codecity in this commit.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Assemble the page
+        run: |
+          mkdir -p _site/demo _site/assets
+          cp -r site/. _site/
+          cp assets/* _site/assets/
+      - name: Draw the React repository
+        run: |
+          # Commits and folders only: the history is read by name, and the files as they are today.
+          git clone --quiet --filter=blob:none --single-branch https://github.com/facebook/react demo-src/react
+          node dist/cli.js demo-src/react -o _site/demo/react.html --theme light --no-browser
+      - name: Draw this repository
+        run: node dist/cli.js . -o _site/demo/codecity.html --no-browser
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

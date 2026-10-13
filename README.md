@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> · <a href="#what-it-shows">What It Shows</a> · <a href="#usage">Usage</a> · <a href="#how-it-works">How It Works</a> · <a href="#limitations">Limitations</a>
+  <a href="https://icydotdev.github.io/codecity/"><strong>Live demo</strong></a> · <a href="#quick-start">Quick Start</a> · <a href="#what-it-shows">What It Shows</a> · <a href="#usage">Usage</a> · <a href="#how-it-works">How It Works</a> · <a href="#limitations">Limitations</a>
 </p>
 
 ---
@@ -107,7 +107,7 @@ Dependencies are drawn for one file at a time. Drawing every import in a reposit
 
 To find the files the codebase relies on most, switch **Height** from *Lines* to *Imported by* (or press `H`). Each building is then as tall as the number of files that import it. Buildings change height in place, so a short utility file that half the codebase depends on becomes immediately visible.
 
-Imports are resolved for JavaScript and TypeScript, including `paths` aliases from the root `tsconfig.json` or `jsconfig.json`.
+Imports are read for JavaScript and TypeScript (including `paths` aliases from the root `tsconfig.json` or `jsconfig.json`), Python, Go, Rust, Java, Kotlin, Scala, C and C++. Only imports of files in the repository are drawn; packages from outside it are not.
 
 ### Live updates
 
@@ -185,7 +185,7 @@ codecity reads three things, all locally:
 
 1. **The working tree.** Every file tracked by git, plus untracked files that are not ignored. Line counts and outlines are computed from the file contents.
 2. **Git history.** One pass of `git log --numstat` provides, for each file, the date it first appeared, the date it last changed, the number of commits, the main author and its size over time.
-3. **Imports.** Import and require statements in JavaScript and TypeScript files, resolved to files in the repository.
+3. **Imports.** Import statements in JavaScript, TypeScript, Python, Go, Rust, Java, Kotlin, Scala, C and C++ files, resolved to files in the repository.
 
 The layout is computed from that data and written, together with the viewer, into a single HTML file. The viewer and its 3D library are bundled into the file, so the page makes no network requests.
 
@@ -193,12 +193,12 @@ By default a local server bound to `127.0.0.1` serves the page and pushes update
 
 ## Limitations
 
-- Imports are resolved for JavaScript and TypeScript only. `paths` aliases are read from the root `tsconfig.json` or `jsconfig.json` only.
+- Imports are read with patterns, not a parser, for the languages listed above. Imports built at run time, and Rust imports from one crate of a workspace to another, are not found. A Go import is drawn as one link, to the file named after the package or its longest file. `paths` aliases are read from the root `tsconfig.json` or `jsconfig.json` only.
 - The history shows the files that exist today. Files that were deleted along the way do not appear.
 - For repositories with more than 20,000 commits, per-commit sizes are not computed. In the history, files then appear at their current size.
 - Tested with repositories of up to 6,000 files. Larger repositories may be slow.
 - "Last changed" is the most recent commit that touched a file. A single commit that reformats every file will make the whole repository appear recently changed.
-- File watching relies on recursive `fs.watch`, which has been tested on macOS only.
+- File watching relies on recursive `fs.watch`. It is tested on macOS, Linux and Windows with Node 20 and 22.
 
 ## Background
 
