@@ -65,6 +65,10 @@
       .stage .view { position: relative; aspect-ratio: 16 / 9.4; background: var(--paper); }
       .stage iframe, .stage .still { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
       .stage .still { object-fit: cover; }
+      /* Over the live map until it is clicked: a wheel turned to scroll the page must not zoom the map instead. */
+      .stage .guard { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 18px; background: none; border: 0; cursor: pointer; }
+      .stage .guard span { font: 600 13px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: #fff; background: var(--ink); padding: 11px 14px; border-radius: 3px; }
+      .stage .guard[hidden] { display: none; }
       .stage .open { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); }
       .stage .open a { display: inline-block; white-space: nowrap; font: 600 13px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: #fff; background: var(--ink); padding: 13px 16px; border-radius: 3px; }
 
@@ -152,7 +156,7 @@
 
           <div class="stage">
             <div class="bar">
-              <span><b>facebook/react</b>, drawn by codecity. Drag to move, scroll to zoom, click a building.</span>
+              <span><b>facebook/react</b>, drawn by codecity. Click the map, then drag to move, scroll to zoom, click a building.</span>
               <a href="demo/react.html">Open full screen</a>
             </div>
             <div class="view" id="view">
@@ -276,8 +280,16 @@ npx codecity -o map.html</pre>
       if (matchMedia("(min-width: 860px) and (pointer: fine)").matches)
         addEventListener("load", () => {
           const frame = Object.assign(document.createElement("iframe"), { src: "demo/react.html", title: "A live codecity map of the React repository", loading: "lazy" });
-          frame.onload = () => view.querySelectorAll(".still, .open").forEach((el) => el.remove());
-          view.append(frame);
+          const guard = Object.assign(document.createElement("button"), { type: "button", className: "guard", innerHTML: "<span>Click to explore</span>", hidden: true });
+          guard.setAttribute("aria-label", "Explore the live map");
+          guard.onclick = () => (guard.hidden = true);
+          // Leaving the map hands the wheel back to the page.
+          view.onmouseleave = () => (guard.hidden = false);
+          frame.onload = () => {
+            view.querySelectorAll(".still, .open").forEach((el) => el.remove());
+            guard.hidden = false;
+          };
+          view.append(frame, guard);
         });
     </script>
   </body>
