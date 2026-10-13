@@ -629,7 +629,7 @@ function enterHistory() {
   show(null);
   $("time").hidden = false;
   $("help").style.visibility = "hidden"; // the bar the history is played from takes its place
-  $("era").setAttribute("aria-pressed", "true");
+  $("era").hidden = true; // the bar has its own way out ("Today")
   $("when").max = String(moments.length - 1);
   lamps.visible = false;
   setClock(0);
@@ -641,7 +641,7 @@ function leaveHistory() {
   clock = null;
   $("time").hidden = true;
   $("help").style.visibility = "visible";
-  $("era").setAttribute("aria-pressed", "false");
+  $("era").hidden = false;
   lamps.visible = true;
   for (const f of files) f.goal = heightNow(f);
   pave();
@@ -785,7 +785,7 @@ function mount(data, animate) {
   $("news").style.display = pullIsNews() || unread.length ? "block" : "none";
   if (pullIsNews()) $("news").innerHTML = `<b>${inPull.size}</b> changed in your last pull, ${esc(ago(D.pull.at))}`;
   else if (unread.length) $("news").innerHTML = `<b>${unread.length}</b> changed since you last looked, ${esc(ago(lastSeen))}`;
-  $("era").parentElement.style.display = moments.length > 2 ? "flex" : "none";
+  $("era").style.display = moments.length > 2 ? "" : "none";
   $("when").max = String(moments.length - 1);
 
   pave();
@@ -940,24 +940,31 @@ resize();
 
 // Under a watcher: listen for the next town.
 if (D.live) {
-  const light = $("live");
-  light.hidden = false;
-  // The light is a switch. Paused, the map holds still while files change (for reading it, or for
-  // showing it to someone), and the newest town waits; live again, it catches up in one step.
+  const row = $("live");
+  row.hidden = false;
+  const [label, on, off] = row.children;
+  // A switch. Paused, the map holds still while files change (for reading it, or for showing it to
+  // someone), and the newest town waits; on again, it catches up in one step.
   let paused = false;
   let connected = false;
   let waiting = null;
   const say = () => {
-    light.textContent = !connected ? "watcher stopped" : paused ? (waiting ? "paused · changes waiting" : "paused") : "live";
-    light.classList.toggle("lost", !connected || paused);
-    light.title = !connected ? "The codecity command is no longer running" : paused ? "Click to follow changes again" : "Following changes as files are saved. Click to pause";
-    light.setAttribute("aria-pressed", String(!paused));
+    label.textContent = connected ? "live updates" : "live updates stopped";
+    label.title = connected ? "" : "The codecity command is no longer running";
+    on.setAttribute("aria-pressed", String(connected && !paused));
+    off.setAttribute("aria-pressed", String(connected && paused));
+    off.textContent = paused && waiting ? "Paused · changes waiting" : "Paused";
+    on.disabled = off.disabled = !connected;
+    row.classList.toggle("lost", !connected || paused);
+    row.classList.toggle("waiting", connected && paused && waiting !== null);
   };
-  light.onclick = () => {
-    paused = !paused;
+  const set = (pause) => {
+    paused = pause;
     if (!paused && waiting) mount(waiting, true), (waiting = null);
     say();
   };
+  on.onclick = () => set(false);
+  off.onclick = () => set(true);
   const feed = new EventSource("events");
   feed.onopen = () => ((connected = true), say());
   feed.onerror = () => ((connected = false), say());

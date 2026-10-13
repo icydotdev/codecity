@@ -85,7 +85,7 @@
       #tip { position: fixed; pointer-events: none; display: none; max-width: min(420px, calc(100vw - 16px)); overflow-wrap: anywhere; padding: 6px 9px; background: var(--ink); color: var(--paper); border-radius: 2px; font-size: 12px; }
       #tip small { display: block; opacity: 0.7; font-size: 11px; }
 
-      #card { position: fixed; left: 20px; bottom: 18px; width: 330px; display: none; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      #card { position: fixed; left: 20px; bottom: 62px; width: 330px; display: none; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
       #card .dir { color: var(--soft); overflow-wrap: anywhere; }
       #card .file { font-size: 16px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
       #card dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin: 10px 0; }
@@ -101,17 +101,26 @@
       #card a, #card button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; }
       #card a { background: var(--ink); color: var(--paper); }
 
-      #live { margin-left: 10px; pointer-events: auto; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-      #live:hover { color: var(--ink); }
-      #live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--fresh); }
-      #live.lost::before { background: var(--soft); }
+      #live[hidden] { display: none; }
+      /* A dot on the label: green while changes are followed, grey when they are not. */
+      #live > span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; background: var(--fresh); }
+      #live.lost > span::before { background: var(--soft); }
+      #live.waiting button[data-id="off"] { background: var(--amber); color: #14181e; }
+      #live button:disabled { cursor: default; opacity: 0.5; }
+      /* The timeline is a thing to start, not a setting: a solid button by itself, bottom left. */
+      #era { position: fixed; left: 20px; bottom: 18px; display: flex; align-items: center; gap: 8px; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--paper); background: var(--ink); border: 1px solid var(--ink); border-radius: 2px; padding: 9px 12px; cursor: pointer; }
+      #era i { width: 0; height: 0; border-left: 8px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+      #era:hover { opacity: 0.86; }
+      #era[hidden] { display: none; }
       #time { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: min(720px, calc(100vw - 40px)); padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
       #time[hidden] { display: none; }
       #time button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; min-width: 62px; }
       #time input { flex: 1; accent-color: var(--hot); }
       #time output { min-width: 96px; text-align: right; }
       #help { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); color: var(--soft); font-size: 11px; pointer-events: none; white-space: nowrap; padding: 4px 10px; background: var(--panel); border-radius: 2px; }
-      @media (max-width: 900px) { #help { display: none; } #card { width: calc(100vw - 40px); bottom: 70px; } }
+      /* Narrower than this and the hints would run under the timeline button. */
+      @media (max-width: 1180px) { #help { display: none; } }
+      @media (max-width: 900px) { #card { width: calc(100vw - 40px); bottom: 70px; } }
     </style>
   </head>
   <body>
@@ -119,7 +128,7 @@
     <div id="labels"></div>
     <header>
       <h1 id="name"></h1>
-      <div class="sub"><span id="sub"></span><button type="button" id="live" hidden></button></div>
+      <div class="sub"><span id="sub"></span></div>
       <div class="row" id="lands" role="group" aria-label="Landscape"></div>
       <button id="news" type="button"></button>
     </header>
@@ -128,8 +137,9 @@
       <div class="row" id="lenses" role="group" aria-label="Colour the map by"><span>colour by</span></div>
       <div class="row" id="windows" role="group" aria-label="Changed within"><span>changed in</span></div>
       <div class="row" id="heights" role="group" aria-label="Height shows"><span>height is</span></div>
-      <div class="row"><button type="button" id="era" aria-pressed="false">History</button></div>
+      <div class="row" id="live" role="group" aria-label="Live updates" hidden><span>live updates</span><button type="button" data-id="on">On</button><button type="button" data-id="off">Paused</button></div>
     </div>
+    <button type="button" id="era"><i aria-hidden="true"></i>Play timeline</button>
     <div id="legend"></div>
     <div id="tip"></div>
     <aside id="card" aria-live="polite"></aside>
