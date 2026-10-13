@@ -162,9 +162,13 @@
         body.open #legend, body:has(#card[style*="block"]) #legend { display: none; }
         #card { left: 10px; right: 10px; width: auto; bottom: 62px; max-height: 52dvh; overflow-y: auto; }
         body.open #card { display: none !important; }
-        #time { bottom: 10px; width: calc(100vw - 20px); gap: 8px; }
-        #time output { min-width: 78px; font-size: 12px; }
-        #time #film { display: none; } /* no room for it beside the slider */
+        /* The timeline takes two rows: the slider and its date, then the buttons, each wide enough for a thumb. */
+        #time { bottom: 10px; width: calc(100vw - 20px); flex-wrap: wrap; gap: 8px; }
+        #time input { order: -2; flex: 1 1 calc(100% - 130px); min-width: 0; } /* with the date, a full row: the buttons go under */
+        #time output { order: -1; flex: 0 0 auto; min-width: 78px; font-size: 12px; white-space: nowrap; }
+        #time button { flex: 1 1 30%; min-width: 0; padding: 11px 4px; font-size: 12px; white-space: nowrap; }
+        body:has(#time:not([hidden])) #gear { display: none; } /* the timeline is where it sits */
+        body:has(#time:not([hidden])) :is(#legend, #card) { bottom: 104px; }
         #tip { display: none !important; } /* nothing hovers on a touch screen; a tap opens the card */
       }
     </style>
