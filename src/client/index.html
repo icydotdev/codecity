@@ -35,7 +35,7 @@
       }
       * { box-sizing: border-box; }
       html, body { height: 100%; margin: 0; overflow: hidden; background: var(--paper); color: var(--ink); font: 13px/1.4 var(--mono); }
-      canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+      canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
       canvas.dragging { cursor: grabbing; }
       canvas.over { cursor: pointer; }
 
@@ -128,6 +128,42 @@
       /* Narrower than this and the hints would run under the timeline button. */
       @media (max-width: 1180px) { #help { display: none; } }
       @media (max-width: 900px) { #card { width: calc(100vw - 40px); bottom: 70px; } }
+      #gear { display: none; }
+
+      /* A phone. There is no room for the settings and the map at once, so the map has the screen:
+         the title is one slim strip at the top, and the settings open from a button at the bottom,
+         over the key, and close again. Everything a finger presses is taller. */
+      @media (max-width: 700px) {
+        header { left: 10px; right: 10px; top: 10px; max-width: none; padding: 8px 11px 9px; }
+        h1 { font-size: 21px; }
+        .sub { margin-top: 3px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #news { margin-top: 7px; font-size: 12px; }
+
+        #era, #gear { bottom: 10px; padding: 12px 14px; font-size: 12px; }
+        #era { left: 10px; }
+        #gear { display: block; position: fixed; right: 10px; font: 600 12px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); background: var(--panel); border: 1px solid var(--ink); border-radius: 2px; cursor: pointer; backdrop-filter: blur(6px); }
+        body.open #gear { background: var(--ink); color: var(--paper); }
+
+        #tools { display: none; left: 10px; right: 10px; top: auto; bottom: 62px; align-items: stretch; max-height: calc(100dvh - 150px); overflow-y: auto; }
+        body.open #tools { display: flex; }
+        #search { width: 100%; font-size: 16px; padding: 10px 11px; } /* 16px: smaller and a phone zooms the page on focus */
+        #panel { grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 11px; }
+        .line { display: block; }
+        .line + .line { margin-top: 9px; }
+        .lab { display: block; margin-bottom: 5px; }
+        .seg { display: flex; flex-wrap: wrap; }
+        .seg button { flex: 1 0 auto; padding: 11px 10px; font-size: 12px; }
+        .pair { flex-wrap: wrap; }
+        #panel select { padding: 11px 26px 11px 10px; font-size: 12px; }
+
+        #legend { left: 10px; right: 10px; bottom: 62px; min-width: 0; max-width: none; padding: 8px 10px; font-size: 12px; }
+        body.open #legend, body:has(#card[style*="block"]) #legend { display: none; }
+        #card { left: 10px; right: 10px; width: auto; bottom: 62px; max-height: 52dvh; overflow-y: auto; }
+        body.open #card { display: none !important; }
+        #time { bottom: 10px; width: calc(100vw - 20px); gap: 8px; }
+        #time output { min-width: 78px; font-size: 12px; }
+        #tip { display: none !important; } /* nothing hovers on a touch screen; a tap opens the card */
+      }
     </style>
   </head>
   <body>
@@ -148,6 +184,7 @@
         <div class="line"><label class="lab" for="lands">theme</label><select id="lands"></select></div>
       </div>
     </div>
+    <button type="button" id="gear" aria-expanded="false" aria-controls="tools">Settings</button>
     <button type="button" id="era"><i aria-hidden="true"></i>Play timeline</button>
     <div id="legend"></div>
     <div id="tip"></div>

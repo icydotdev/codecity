@@ -862,11 +862,41 @@ function show(f) {
   $("copy").onclick = () => navigator.clipboard?.writeText(f.path).then(() => ($("copy").textContent = "Copied"));
   for (const hop of card.querySelectorAll(".hop")) hop.onclick = () => (show(files[Number(hop.dataset.i)]), flyTo(picked));
 }
+// Two fingers on the map: pinch to zoom, about the point between them.
+const fingers = new Map();
+let pinch = null;
+const between = () => {
+  const [a, b] = [...fingers.values()];
+  return { clientX: (a.clientX + b.clientX) / 2, clientY: (a.clientY + b.clientY) / 2, apart: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) };
+};
+const letGo = (e) => {
+  fingers.delete(e.pointerId);
+  if (fingers.size < 2) pinch = null;
+};
+canvas.addEventListener("pointercancel", letGo);
 canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId);
+  if (e.pointerType === "touch") fingers.set(e.pointerId, e);
+  if (fingers.size === 2) {
+    pinch = { apart: between().apart, span: view.span };
+    drag = null;
+    return;
+  }
   drag = { x: e.clientX, y: e.clientY, from: groundAt(e), moved: false };
 });
 canvas.addEventListener("pointermove", (e) => {
+  if (fingers.has(e.pointerId)) fingers.set(e.pointerId, e);
+  if (pinch && fingers.size === 2) {
+    const mid = between();
+    const before = groundAt(mid);
+    view.span = goal.span = Math.max(4, Math.min(fit() * 2.5, (pinch.span * pinch.apart) / Math.max(1, mid.apart)));
+    aim();
+    const after = groundAt(mid);
+    view.x = goal.x = view.x + before.x - after.x;
+    view.z = goal.z = view.z + before.z - after.z;
+    aim();
+    return;
+  }
   if (drag) {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 4) drag.moved = true;
     if (drag.moved) {
@@ -893,10 +923,15 @@ canvas.addEventListener("pointermove", (e) => {
   }
 });
 canvas.addEventListener("pointerup", (e) => {
+  const pinching = pinch !== null;
+  letGo(e);
   canvas.classList.remove("dragging");
-  if (drag && !drag.moved && clock === null) show(fileAt(e));
+  if (!pinching && drag && !drag.moved && clock === null) show(fileAt(e));
   drag = null;
 });
+// On a phone the settings open from a button and close when the map is touched.
+$("gear").onclick = () => $("gear").setAttribute("aria-expanded", String(document.body.classList.toggle("open")));
+canvas.addEventListener("pointerdown", () => (document.body.classList.remove("open"), $("gear").setAttribute("aria-expanded", "false")));
 canvas.addEventListener("dblclick", (e) => {
   const f = fileAt(e);
   if (f) location.href = `vscode://file/${encodeURI(D.root + "/" + f.path)}`;
