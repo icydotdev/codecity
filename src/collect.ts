@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { readImports, resolveImports, type Spec } from "./imports.js";
 
 // What the map is made from: every file git knows about (and any new ones not
 // yet committed), how long it is, the rough shape of its text, what it imports,
@@ -105,7 +106,7 @@ export function profile(text: string): { lines: number; floors: [number, number]
   return { lines: count, floors: out };
 }
 
-/** Files whose imports we can read. Other languages have none drawn yet. */
+/** JavaScript and TypeScript, whose imports are read here. Other languages are in imports.ts. */
 const SCRIPT = /\.(m|c)?[jt]sx?$/;
 const IMPORT = /(?:^|[^.\w$])(?:import|export)\s+(?:[^'"`;]*?\sfrom\s+)?["']([^"']+)["']|(?:^|[^.\w$])(?:require|import)\s*\(\s*["']([^"']+)["']\s*\)/g;
 const ENDINGS = [".ts", ".tsx", ".js", ".jsx", ".mts", ".mjs", ".cts", ".cjs", ".json", ".css"];
@@ -325,6 +326,7 @@ export function collect(dir: string, before?: Memory): { repo: Repo; memory: Mem
 
   const files: CityFile[] = [];
   const written = new Map<string, string[]>(); // what each script says it imports, as written
+  const foreign = new Map<string, Spec[]>(); // the same for Python, Go, Rust, the JVM languages and C
   for (const name of [...tracked, ...untracked]) {
     const full = path.join(root, name);
     let size: number;
@@ -347,6 +349,10 @@ export function collect(dir: string, before?: Memory): { repo: Repo; memory: Mem
         shape = profile(text);
         if (kind === "generated") shape.floors = [[100, 100]];
         else if (SCRIPT.test(name)) written.set(name, findImports(text));
+        else {
+          const specs = readImports(name, text);
+          if (specs?.length) foreign.set(name, specs);
+        }
       }
     }
     const row = memory.past.get(name);
@@ -379,6 +385,15 @@ export function collect(dir: string, before?: Memory): { repo: Repo; memory: Mem
     }
     file.uses = [...uses];
   }
+  const read = (name: string) => {
+    try {
+      return readFileSync(path.join(root, name), "utf8");
+    } catch {
+      return null;
+    }
+  };
+  const elsewhere = resolveImports(foreign, { files, read });
+  for (const file of files) if (elsewhere.has(file.path)) file.uses = elsewhere.get(file.path)!;
 
   let branch = "";
   try {
