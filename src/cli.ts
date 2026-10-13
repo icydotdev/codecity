@@ -14,12 +14,13 @@ if (args.includes("--help") || args.includes("-h")) {
   Usage: codecity [folder] [options]
 
   Renders the git repository in [folder] (default: the current directory)
-  as a 3D map, one building per file. Runs locally; no data leaves your machine.
+  as a 3D map, one building per file, and keeps it up to date as files
+  change. Runs locally; no data leaves your machine.
 
   Options:
-    -w, --watch       Keep the map open and update it as files change
-    --port <number>   Port for --watch (default: 3737)
-    -o <file>         Where to write the map (default: a temporary folder)
+    -o <file>         Write the map to one HTML file and stop, to keep or share
+    --once            The same, to a temporary folder
+    --port <number>   Port to serve the live map on (default: 3737)
     --land <name>     Theme: ${LANDS.join(", ")}
     --no-browser      Don't open the browser automatically
     -h, --help        Show this help message
@@ -50,7 +51,10 @@ const fail = (message: string): never => {
 const out = take("-o", "--out");
 const wanted = take("--land", "--theme");
 const port = Number(take("--port") ?? 3737);
-const watching = has("-w", "--watch");
+// Watching used to be asked for. It is what happens now, so the flag is accepted and does nothing.
+has("-w", "--watch");
+const once = has("--once", "--no-watch");
+const watching = !once && out === null;
 const noBrowser = has("--no-browser", "--no-open");
 const unknown = args.find((arg) => arg.startsWith("-"));
 if (unknown) fail(`Unknown option ${unknown}. Try codecity --help`);

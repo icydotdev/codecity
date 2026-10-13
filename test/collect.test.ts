@@ -1,5 +1,9 @@
 import { expect, test } from "vitest";
-import { findImports, plainJson, profile, readLog, resolveImport, sizeLog } from "../src/collect.js";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { collect, findImports, lastPull, plainJson, profile, readLog, resolveImport, sizeLog } from "../src/collect.js";
 import { matters } from "../src/server.js";
 
 test("a file's silhouette: its floors run from the end of the file up to its first lines", () => {
@@ -94,3 +98,38 @@ test("the watcher looks again for a saved file or a commit, and not for git's ow
   expect(matters("node_modules/react/index.js")).toBe(false);
   expect(matters("packages/web/node_modules/x/y.js")).toBe(false);
 });
+
+test("the last pull is found among HEAD's moves, whether it merged or rebased", () => {
+  const move = (hash: string, what: string, at = 100) => ({ hash, what, at });
+  expect(lastPull([move("c", "commit: mine"), move("b", "pull: Fast-forward", 90), move("a", "commit: before")]), "a plain pull: one move").toEqual({ from: "a", to: "b", at: 90 });
+  expect(
+    lastPull([move("f", "pull --rebase (finish): returning to refs/heads/main", 80), move("e", "pull --rebase (pick): mine"), move("d", "pull --rebase (start): checkout abc"), move("a", "commit: mine")]),
+    "a rebasing pull is several moves in a row, and what came before it is before the oldest",
+  ).toEqual({ from: "a", to: "f", at: 80 });
+  expect(lastPull([move("b", "commit: two"), move("a", "commit: one")]), "never pulled").toBeNull();
+  expect(lastPull([move("a", "pull: Fast-forward")]), "nothing on record before it").toBeNull();
+  expect(lastPull([move("b", "checkout: moving from pull-fix to main"), move("a", "commit: one")]), "a branch with pull in its name is not a pull").toBeNull();
+});
+
+test("a real pull: the files it changed are named, whenever their commits were written", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "codecity-pull-"));
+  const run = (cwd: string, ...args: string[]) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args], { stdio: "pipe" });
+  const [theirs, mine] = [path.join(dir, "theirs"), path.join(dir, "mine")];
+  execFileSync("git", ["init", "-q", "-b", "main", theirs]);
+  writeFileSync(path.join(theirs, "a.ts"), "one\n");
+  writeFileSync(path.join(theirs, "b.ts"), "one\n");
+  run(theirs, "add", "-A");
+  run(theirs, "commit", "-q", "-m", "first");
+  execFileSync("git", ["clone", "-q", theirs, mine]);
+  expect(collect(mine).repo.pull, "a fresh clone has pulled nothing").toBeNull();
+
+  writeFileSync(path.join(theirs, "b.ts"), "one\ntwo\n");
+  writeFileSync(path.join(theirs, "c.ts"), "new\n");
+  run(theirs, "add", "-A");
+  // Written long ago: its date must not matter, only that the pull brought it.
+  run(theirs, "commit", "-q", "-m", "second", "--date=2001-01-01T00:00:00");
+  run(mine, "pull", "-q", "--ff-only");
+  const pull = collect(mine).repo.pull;
+  expect(pull?.files.sort()).toEqual(["b.ts", "c.ts"]);
+  expect(pull!.at, "when it arrived here, not when it was written").toBeGreaterThan(Date.now() / 1000 - 120);
+}, 30_000);

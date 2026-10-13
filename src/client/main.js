@@ -428,9 +428,14 @@ const flyTo = (f) => Object.assign(goal, { x: f.cx, z: f.cz, span: Math.min(goal
 // ------------------------------------------------------------------ lenses
 const lastSeenKey = () => `codecity:${D.root}:seen`;
 let lastSeen = null;
+/** The buildings the last pull changed, as places in `files`. */
+let inPull = new Set();
+/** A pull is news if it happened since the last visit, or within a week on a first visit. */
+const pullIsNews = () => inPull.size > 0 && D.pull.at > (lastSeen ?? NOW - 7 * DAY);
 
 const WINDOWS = [
   { id: "auto", label: "Auto" },
+  { id: "pull", label: "Last pull" },
   { id: "visit", label: "Since last visit", since: () => lastSeen },
   { id: "1d", label: "24 h", since: () => NOW - DAY },
   { id: "7d", label: "7 d", since: () => NOW - 7 * DAY },
@@ -477,6 +482,8 @@ function survey() {
   kinds = tally((f) => ext(f.path));
   people = tally(authorName);
   unread = lastSeen ? files.filter((f) => f.modified > lastSeen) : [];
+  inPull = new Set(D.pull?.files ?? []);
+  if (!inPull.size && windowId === "pull") windowId = "auto";
   const times = new Set([NOW]);
   for (const f of files) {
     times.add(f.birth);
@@ -499,6 +506,8 @@ const LENSES = [
     label: "Changed",
     color: (f, i) => {
       if (f.dirty) return C.amber;
+      // What the last pull brought in, whenever those commits were written.
+      if (windowId === "pull") return inPull.has(i) ? C.hot : plain(f);
       if (windowId === "auto") {
         // Warm for lately, cold and dark for long left alone, the plain model in between.
         if (standing[i] >= 0.5) return tmp.copy(plain(f)).lerp(isNew(f, i) ? C.fresh : C.hot, warmth(i));
@@ -522,6 +531,8 @@ const LENSES = [
           <li><i style="background:${css(C.fresh)}"></i><span>new file</span><em>${born}</em></li>
           <li><i style="background:${css(C.old)}"></i><span>left alone</span><em>since ${when(touchedAt(0.2))}</em></li>${loose}</ul>`;
       }
+      if (windowId === "pull")
+        return `<h2>Last pull · ${esc(ago(D.pull.at))}</h2><ul><li><i style="background:${css(C.hot)}"></i><span>changed by it</span><em>${inPull.size}</em></li></ul><p>${count(inPull.size, "building")} of ${files.length.toLocaleString()}. Files it deleted are not shown.</p>${loose ? `<ul>${loose}</ul>` : ""}`;
       const w = WINDOWS.find((w) => w.id === windowId);
       const n = files.filter((f) => f.modified >= w.since()).length;
       return `<h2>Changed · ${esc(w.label)}</h2><div class="ramp" style="background:linear-gradient(90deg, ${css(tmp.copy(C.card).lerp(C.hot, FAINTEST))}, ${css(C.hot)})"></div><div class="ends"><span>${day(w.since())}</span><span>now</span></div><p>${count(n, "building")} of ${files.length.toLocaleString()}.</p>${loose ? `<ul>${loose}</ul>` : ""}`;
@@ -575,7 +586,7 @@ function paint() {
   $("legend").innerHTML = found + (clock === null ? lens.legend() : era) + note;
   for (const b of $("lenses").querySelectorAll("button")) b.setAttribute("aria-pressed", String(clock === null && b.dataset.id === lens.id));
   $("windows").style.display = clock === null && lens.id === "recent" ? "flex" : "none";
-  for (const b of $("windows").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === windowId)), (b.hidden = b.dataset.id === "visit" && !lastSeen);
+  for (const b of $("windows").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === windowId)), (b.hidden = (b.dataset.id === "visit" && !lastSeen) || (b.dataset.id === "pull" && !inPull.size));
   for (const b of $("heights").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === tallBy));
   $("heights").style.display = clock === null && files.some((f) => f.usedBy.length) ? "flex" : "none";
 }
@@ -770,8 +781,10 @@ function mount(data, animate) {
 
   $("name").textContent = D.name;
   $("sub").textContent = [D.branch && `${D.branch} @ ${D.head}`, count(files.length, "file"), count(files.reduce((sum, f) => sum + (f.kind === "code" ? f.lines : 0), 0), "line"), `since ${new Date(born[0] * 1000).getFullYear()}`].filter(Boolean).join("  ·  ");
-  $("news").style.display = unread.length ? "block" : "none";
-  if (unread.length) $("news").innerHTML = `<b>${unread.length}</b> changed since you last looked, ${esc(ago(lastSeen))}`;
+  // One piece of news at a time, and a pull outranks the rest: it is what just landed on this machine.
+  $("news").style.display = pullIsNews() || unread.length ? "block" : "none";
+  if (pullIsNews()) $("news").innerHTML = `<b>${inPull.size}</b> changed in your last pull, ${esc(ago(D.pull.at))}`;
+  else if (unread.length) $("news").innerHTML = `<b>${unread.length}</b> changed since you last looked, ${esc(ago(lastSeen))}`;
   $("era").parentElement.style.display = moments.length > 2 ? "flex" : "none";
   $("when").max = String(moments.length - 1);
 
@@ -794,7 +807,7 @@ const stored = () => {
     return null; // storage switched off
   }
 };
-$("news").onclick = () => (leaveHistory(), (lens = LENSES[1]), (windowId = "visit"), paint());
+$("news").onclick = () => (leaveHistory(), (lens = LENSES[1]), (windowId = pullIsNews() ? "pull" : "visit"), paint());
 
 // ------------------------------------------------------------------ pointer
 const tip = $("tip");
@@ -929,10 +942,31 @@ resize();
 if (D.live) {
   const light = $("live");
   light.hidden = false;
+  // The light is a switch. Paused, the map holds still while files change (for reading it, or for
+  // showing it to someone), and the newest town waits; live again, it catches up in one step.
+  let paused = false;
+  let connected = false;
+  let waiting = null;
+  const say = () => {
+    light.textContent = !connected ? "watcher stopped" : paused ? (waiting ? "paused · changes waiting" : "paused") : "live";
+    light.classList.toggle("lost", !connected || paused);
+    light.title = !connected ? "The codecity command is no longer running" : paused ? "Click to follow changes again" : "Following changes as files are saved. Click to pause";
+    light.setAttribute("aria-pressed", String(!paused));
+  };
+  light.onclick = () => {
+    paused = !paused;
+    if (!paused && waiting) mount(waiting, true), (waiting = null);
+    say();
+  };
   const feed = new EventSource("events");
-  feed.onopen = () => ((light.textContent = "live"), light.classList.remove("lost"));
-  feed.onerror = () => ((light.textContent = "watcher stopped"), light.classList.add("lost"));
-  feed.addEventListener("city", (e) => mount(JSON.parse(e.data), true));
+  feed.onopen = () => ((connected = true), say());
+  feed.onerror = () => ((connected = false), say());
+  feed.addEventListener("city", (e) => {
+    const next = JSON.parse(e.data);
+    if (paused) waiting = next;
+    else mount(next, true);
+    say();
+  });
 }
 
 let last = performance.now();

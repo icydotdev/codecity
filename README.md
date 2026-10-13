@@ -36,12 +36,12 @@ It runs locally with a single command and produces a single HTML file. There is 
 npx codecity
 ```
 
-This opens a map of the current repository in your browser.
+This opens a map of the current repository in your browser and keeps it up to date while you or your coding agents work. Stop it with `Ctrl+C`.
 
-To keep the map open and updated while you or your coding agents work:
+To write the map to a single HTML file instead, to keep or to share:
 
 ```bash
-npx codecity --watch
+npx codecity -o map.html
 ```
 
 To install globally:
@@ -83,6 +83,7 @@ The **Changed** view colours every file by how recently it was modified.
 - **New files.** Files that were created recently, as opposed to edited, are shown in green.
 - **Uncommitted work.** Files with uncommitted changes are shown in amber.
 - **Fixed windows.** Switch to the last 24 hours, 7, 30 or 90 days, or the last year.
+- **Last pull.** Shows exactly the files your most recent `git pull` changed, read from git's own record of where `HEAD` has been. A commit's date says when it was written, not when it reached your machine, so this is the view to use after pulling a colleague's work. When a pull is recent, a notice above the map leads straight to it.
 - **Since your last visit.** The map records when you last opened it and can show only what has changed since then.
 
 ### Dependencies
@@ -110,10 +111,11 @@ Imports are resolved for JavaScript and TypeScript, including `paths` aliases fr
 
 ### Live updates
 
-With `--watch`, codecity serves the map on `localhost` and applies changes as they happen, without reloading the page.
+codecity serves the map on `localhost` and applies changes as they happen, without reloading the page.
 
 - Files that have just been saved are highlighted for a few seconds.
 - New files rise from the ground in their final position.
+- **Pause.** Click the *live* indicator beside the repository name to hold the map still, for example while presenting it. Changes that arrive in the meantime are applied in one step when you resume.
 - Commits, checkouts and staging are picked up from the `.git` directory.
 
 This is the mode to use while coding agents are working: you can see where in the codebase they are making changes.
@@ -151,15 +153,15 @@ Two themes are included: **Plain** and **Beach**. A theme changes the ground the
 ```
 codecity [folder] [options]
 
-  -w, --watch       Keep the map open and update it as files change
-  --port <number>   Port for --watch (default: 3737)
-  -o <file>         Where to write the map (default: a temporary folder)
+  -o <file>         Write the map to one HTML file and stop, to keep or share
+  --once            The same, to a temporary folder
+  --port <number>   Port to serve the live map on (default: 3737)
   --land <name>     Theme: plain, beach
   --no-browser      Don't open the browser automatically
   -h, --help        Show this help message
 ```
 
-Without `--watch`, the output is one self-contained HTML file. It works offline and can be opened from disk, attached to a pull request or sent to a colleague.
+With `-o` or `--once`, the output is one self-contained HTML file. It works offline and can be opened from disk, attached to a pull request or sent to a colleague.
 
 ### Keyboard and mouse
 
@@ -187,7 +189,7 @@ codecity reads three things, all locally:
 
 The layout is computed from that data and written, together with the viewer, into a single HTML file. The viewer and its 3D library are bundled into the file, so the page makes no network requests.
 
-In watch mode a local server bound to `127.0.0.1` serves the page and pushes updates to it. Git history is cached and only read again when the current commit changes.
+By default a local server bound to `127.0.0.1` serves the page and pushes updates to it. Git history is cached and only read again when the current commit changes.
 
 ## Limitations
 
@@ -213,7 +215,7 @@ git clone https://github.com/icydotdev/codecity
 cd codecity
 npm install
 npm run build
-npm run dev -- ../some-repo --watch
+npm run dev -- ../some-repo
 ```
 
 ## License

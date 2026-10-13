@@ -101,7 +101,8 @@
       #card a, #card button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; }
       #card a { background: var(--ink); color: var(--paper); }
 
-      #live { margin-left: 10px; }
+      #live { margin-left: 10px; pointer-events: auto; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+      #live:hover { color: var(--ink); }
       #live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--fresh); }
       #live.lost::before { background: var(--soft); }
       #time { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: min(720px, calc(100vw - 40px)); padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
@@ -118,7 +119,7 @@
     <div id="labels"></div>
     <header>
       <h1 id="name"></h1>
-      <div class="sub"><span id="sub"></span><span id="live" hidden></span></div>
+      <div class="sub"><span id="sub"></span><button type="button" id="live" hidden></button></div>
       <div class="row" id="lands" role="group" aria-label="Landscape"></div>
       <button id="news" type="button"></button>
     </header>

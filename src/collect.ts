@@ -41,6 +41,8 @@ export interface Repo {
   files: CityFile[];
   /** True when the history was too long to measure every commit, so lengths through time are not known. */
   quick: boolean;
+  /** The last `git pull` that brought anything in: when, and which files here it changed. */
+  pull: { at: number; files: string[] } | null;
 }
 
 /** What git remembers of one file. `changes` is time, lines added less lines removed, newest first. */
@@ -258,6 +260,52 @@ function remember(root: string, wanted: Set<string>, before?: Memory): Memory {
   return { head, past: readLog(log, wanted), quick };
 }
 
+/** One line of git's own record of where HEAD has been, newest first. */
+export interface Move {
+  hash: string;
+  /** What moved it, in git's words: "pull: Fast-forward", "commit: fix typo", "checkout: moving from a to b". */
+  what: string;
+  /** Seconds since 1970. */
+  at: number;
+}
+
+/**
+ * The most recent pull among HEAD's moves: where HEAD was before it and after it.
+ *
+ * A commit's date says when it was written, not when it arrived here, so "changed lately" cannot
+ * answer "what did my last pull bring in". Git's record of HEAD's moves can. A plain pull is one
+ * move. A pull that rebases is several in a row (start, a pick for each commit of yours, finish),
+ * and the state before it is the one before the oldest of them.
+ */
+export function lastPull(moves: Move[]): { from: string; to: string; at: number } | null {
+  const isPull = (move: Move | undefined) => move !== undefined && /^pull\b/.test(move.what);
+  const newest = moves.findIndex(isPull);
+  if (newest < 0) return null;
+  let oldest = newest;
+  while (isPull(moves[oldest + 1])) oldest++;
+  const before = moves[oldest + 1];
+  if (!before) return null; // the pull is the first thing on record: a clone, with nothing before it
+  return { from: before.hash, to: moves[newest]!.hash, at: moves[newest]!.at };
+}
+
+function pulled(root: string): Repo["pull"] {
+  try {
+    const moves = git(root, ["log", "-g", "-n", "500", "--date=unix", "--format=%H%x01%gs%x01%gd", "HEAD"])
+      .split("\n")
+      .filter(Boolean)
+      .map((line): Move => {
+        const [hash = "", what = "", selector = ""] = line.split("\x01");
+        return { hash, what, at: Number(/\{(\d+)\}/.exec(selector)?.[1] ?? 0) };
+      });
+    const pull = lastPull(moves);
+    if (!pull || pull.from === pull.to) return null;
+    const files = git(root, ["diff", "--name-only", "--no-renames", "-z", pull.from, pull.to]).split("\0").filter(Boolean);
+    return files.length ? { at: pull.at, files } : null;
+  } catch {
+    return null; // no commits yet, or the record has been cleared
+  }
+}
+
 export function collect(dir: string, before?: Memory): { repo: Repo; memory: Memory } {
   const root = git(dir, ["rev-parse", "--show-toplevel"]).trim();
   const list = (args: string[]) => git(root, args).split("\0").filter(Boolean);
@@ -338,5 +386,5 @@ export function collect(dir: string, before?: Memory): { repo: Repo; memory: Mem
   } catch {
     /* no commits yet */
   }
-  return { repo: { name: path.basename(root), root, branch, head: memory.head.slice(0, 7), at: now, authors, files, quick: memory.quick }, memory };
+  return { repo: { name: path.basename(root), root, branch, head: memory.head.slice(0, 7), at: now, authors, files, quick: memory.quick, pull: pulled(root) }, memory };
 }

@@ -23,6 +23,8 @@ export interface City {
   live: boolean;
   /** True when the history was too long to measure, so the timelapse cannot show buildings growing. */
   quick: boolean;
+  /** The last pull: when it was, and the buildings it changed, as places in `files`. */
+  pull: { at: number; files: number[] } | null;
   w: number;
   h: number;
   dirs: District[];
@@ -46,6 +48,11 @@ export function buildCity(dir: string, options: { land?: Land | null; live?: boo
     land: options.land ?? null,
     live: options.live ?? false,
     quick: repo.quick,
+    pull: repo.pull && {
+      at: repo.pull.at,
+      // Files the pull deleted have no building to point at.
+      files: repo.pull.files.map((name) => placeOf.get(name)).filter((place): place is number => place !== undefined),
+    },
     w: round(plan.w),
     h: round(plan.h),
     dirs: plan.dirs.map((d) => ({ ...d, x: round(d.x), y: round(d.y), w: round(d.w), h: round(d.h) })),
