@@ -122,7 +122,9 @@ This is the mode to use while coding agents are working: you can see where in th
 
 ### History
 
-Select **History** (or press `P`) to replay the repository from its first commit to the present. Each district appears when its first file does, and each file appears on the date it was first committed and grows as it grew. Recently added files are shown in green and recently changed files in coral. The timeline can be paused and scrubbed.
+Select **Play timeline** (or press `P`) to replay the repository from its first commit to the present. Each district appears when its first file does, and each file appears on the date it was first committed and grows as it grew. Recently added files are shown in green and recently changed files in coral. The timeline can be paused and scrubbed.
+
+**Save video** records the playback as a video file, with the district names, the date and the repository name drawn into the picture. It records the map as it is on screen, so set the theme, zoom and angle first. The file is MP4 where the browser can write it and WebM otherwise, and it is made in the browser: nothing is uploaded.
 
 Playback advances by event, not by calendar time, so periods of inactivity are skipped.
 
@@ -200,9 +202,7 @@ By default a local server bound to `127.0.0.1` serves the page and pushes update
 - "Last changed" is the most recent commit that touched a file. A single commit that reformats every file will make the whole repository appear recently changed.
 - File watching relies on recursive `fs.watch`. It is tested on macOS, Linux and Windows with Node 20 and 22.
 
-## Background
-
-The idea of drawing software as a city comes from CodeCity, the research tool by Richard Wettel and Michele Lanza (University of Lugano, 2007). This package is an independent implementation of that metaphor and is not affiliated with the original project.
+## Earlier versions
 
 Before version 0.2.0 this package was published as `@icydotdev/repocity`.
 

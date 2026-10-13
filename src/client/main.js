@@ -658,6 +658,7 @@ function enterHistory() {
 }
 function leaveHistory() {
   if (clock === null) return;
+  wrap(0);
   play(false);
   clock = null;
   $("time").hidden = true;
@@ -672,12 +673,104 @@ function play(on) {
   playing = on;
   if (on && playhead >= moments.length - 1) setClock(0);
   $("play").textContent = on ? "Pause" : "Play";
+  if (!on && film) wrap();
   wake();
 }
 $("era").onclick = () => (clock === null ? enterHistory() : leaveHistory());
 $("play").onclick = () => play(!playing);
 $("today").onclick = leaveHistory;
 $("when").oninput = () => (play(false), setClock(Number($("when").value)));
+
+// ------------------------------------------------------------------ a film of the history
+// The history, saved as a video to post or keep. The map is drawn by WebGL and its names by the
+// page, so each frame is put together on a sheet of its own: the map, the district names, the date
+// and the repository's name. The sheet is what is recorded. Nothing leaves the machine.
+/** The video being made, if one is. */
+let film = null;
+/** MP4 where the browser can write it, since that is what everything accepts; WebM where not. */
+const FILM_TYPE = window.MediaRecorder && ["video/mp4;codecs=avc1.640028", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type));
+/** How long the finished town is held at the end, in milliseconds: the last buildings are still rising when the history stops. */
+const FILM_HOLD = 1800;
+$("film").hidden = !FILM_TYPE;
+function record() {
+  if (film) return wrap(0);
+  if (!FILM_TYPE || moments.length < 2) return;
+  enterHistory();
+  play(false);
+  setClock(0);
+  const sheet = document.createElement("canvas");
+  sheet.width = canvas.width & ~1; // H.264 will not take an odd size
+  sheet.height = canvas.height & ~1;
+  const recorder = new MediaRecorder(sheet.captureStream(30), { mimeType: FILM_TYPE, videoBitsPerSecond: 12_000_000 });
+  const parts = [];
+  recorder.ondataavailable = (e) => e.data.size && parts.push(e.data);
+  recorder.onstop = () => {
+    film = null;
+    $("film").textContent = "Save video";
+    if (!parts.length) return;
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob(parts, { type: FILM_TYPE }));
+    link.download = `${D.name.replace(/[^\w.-]+/g, "-")}-history.${FILM_TYPE.includes("mp4") ? "mp4" : "webm"}`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
+  };
+  film = { sheet, pen: sheet.getContext("2d"), recorder, ending: 0 };
+  $("film").textContent = "Stop";
+  frame(); // the first frame is the empty ground, not whatever was showing
+  recorder.start();
+  play(true);
+}
+/** End the video, after a pause so that it does not stop on a town half built. */
+function wrap(after = FILM_HOLD) {
+  if (!film || film.ending) return;
+  const { recorder } = film;
+  film.ending = setTimeout(() => recorder.state !== "inactive" && recorder.stop(), after);
+}
+/** Draw one frame of the video: what is on the screen, without the controls. */
+function frame() {
+  const { sheet, pen } = film;
+  const k = sheet.width / innerWidth; // the sheet is in device pixels, the page is not
+  const look = getComputedStyle(document.body);
+  const [ink, soft, paper] = ["--ink", "--soft", "--paper"].map((name) => look.getPropertyValue(name).trim());
+  const labelFace = look.getPropertyValue("--label").trim();
+  pen.drawImage(canvas, 0, 0, sheet.width, sheet.height);
+  pen.textBaseline = "alphabetic";
+  pen.lineJoin = "round";
+  const write = (text, x, y, color) => {
+    pen.strokeStyle = paper;
+    pen.lineWidth = 4 * k;
+    pen.strokeText(text, x, y);
+    pen.fillStyle = color;
+    pen.fillText(text, x, y);
+  };
+  pen.textAlign = "center";
+  for (const { d, el } of signs) {
+    if (el.style.display !== "block") continue;
+    const minor = d.depth > 1;
+    const x = parseFloat(el.style.left) * k;
+    const y = parseFloat(el.style.top) * k;
+    const color = minor ? soft : ink;
+    pen.font = `${minor ? 500 : 600} ${(minor ? 10 : 11) * k}px ${labelFace}`;
+    pen.letterSpacing = `${0.16 * (minor ? 10 : 11) * k}px`;
+    const text = d.label.toUpperCase();
+    const wide = pen.measureText(text).width;
+    write(text, x, y - 8 * k, color);
+    pen.fillStyle = color;
+    pen.fillRect(x - wide / 2, y - 1 * k, wide, k);
+    pen.fillRect(x - k / 2, y, k, (minor ? 9 : 14) * k);
+  }
+  pen.letterSpacing = "0px";
+  pen.textAlign = "left";
+  const edge = 28 * k;
+  pen.font = `700 ${30 * k}px ${labelFace}`;
+  write(D.name, edge, edge + 26 * k, ink);
+  pen.font = `500 ${17 * k}px ${look.fontFamily}`;
+  write(`${day(clock ?? moments[moments.length - 1])} · ${count(files.filter((f) => clock === null || f.birth <= clock).length, "file")}`, edge, edge + 52 * k, ink);
+  pen.textAlign = "right";
+  pen.font = `500 ${13 * k}px ${look.fontFamily}`;
+  write("npx codecity", sheet.width - edge, sheet.height - edge, soft);
+}
+$("film").onclick = record;
 
 // ------------------------------------------------------------------ labels
 const lift = () => signs.forEach((sign) => (sign.at.y = sign.inside.reduce((max, f) => Math.max(max, f.tall), 0) + 0.05 * sign.d.depth));
@@ -1072,8 +1165,10 @@ renderer.setAnimationLoop((t) => {
     lamps.instanceMatrix.needsUpdate = true;
   }
   // Nothing moving, nothing to draw: a map left open all day should cost nothing.
-  if (!(moving || growing || glowing || playing || lit || frames > 0)) return;
+  if (!(moving || growing || glowing || playing || lit || film || frames > 0)) return;
   frames = Math.max(0, frames - 1);
   label();
   renderer.render(scene, camera);
+  // In the same turn as the drawing: a moment later the browser has cleared what WebGL drew.
+  if (film) frame();
 });

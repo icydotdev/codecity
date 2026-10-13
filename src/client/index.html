@@ -122,7 +122,9 @@
       #time { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: min(720px, calc(100vw - 40px)); padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
       #time[hidden] { display: none; }
       #time button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; min-width: 62px; }
-      #time input { flex: 1; accent-color: var(--hot); }
+      #time button[hidden] { display: none; }
+      #time #film { white-space: nowrap; }
+      #time input { flex: 1; min-width: 40px; accent-color: var(--hot); }
       #time output { min-width: 96px; text-align: right; }
       #help { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); color: var(--soft); font-size: 11px; pointer-events: none; white-space: nowrap; padding: 4px 10px; background: var(--panel); border-radius: 2px; }
       /* Narrower than this and the hints would run under the timeline button. */
@@ -162,6 +164,7 @@
         body.open #card { display: none !important; }
         #time { bottom: 10px; width: calc(100vw - 20px); gap: 8px; }
         #time output { min-width: 78px; font-size: 12px; }
+        #time #film { display: none; } /* no room for it beside the slider */
         #tip { display: none !important; } /* nothing hovers on a touch screen; a tap opens the card */
       }
     </style>
@@ -193,6 +196,7 @@
       <button type="button" id="play" aria-label="Play">Play</button>
       <input type="range" id="when" min="0" max="1" step="1" value="0" aria-label="Moment in the history" />
       <output id="date" for="when"></output>
+      <button type="button" id="film" title="Record the history as a video file">Save video</button>
       <button type="button" id="today">Today</button>
     </div>
     <div id="help">drag to move · scroll to zoom · Q / E to turn · T theme · H height · click a building for its imports · double-click to open it</div>
