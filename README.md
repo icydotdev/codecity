@@ -141,10 +141,10 @@ A view only ever changes colour. Position and shape always mean the same thing.
 
 ### Themes
 
-Two themes are included: **Plain** and **Beach**. A theme changes the ground the map stands on. It never changes the buildings or the lighting, so colours mean the same thing in every theme.
+Three themes are included: **Light**, **Dark** and **Beach**. By default the map follows your system's light or dark setting. A theme changes the ground the map stands on. It never changes what the buildings' colours mean.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/icydotdev/codecity/main/assets/screenshot-plain.jpg" width="400" alt="Plain theme" />
+  <img src="https://raw.githubusercontent.com/icydotdev/codecity/main/assets/screenshot-plain.jpg" width="400" alt="Light theme" />
   <img src="https://raw.githubusercontent.com/icydotdev/codecity/main/assets/screenshot-beach.jpg" width="400" alt="Beach theme" />
 </p>
 
@@ -156,7 +156,7 @@ codecity [folder] [options]
   -o <file>         Write the map to one HTML file and stop, to keep or share
   --once            The same, to a temporary folder
   --port <number>   Port to serve the live map on (default: 3737)
-  --land <name>     Theme: plain, beach
+  --theme <name>    Theme: auto, light, dark, beach (default: auto)
   --no-browser      Don't open the browser automatically
   -h, --help        Show this help message
 ```

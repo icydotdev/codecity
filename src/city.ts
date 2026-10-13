@@ -7,7 +7,7 @@ import { layout, type District } from "./layout.js";
 // A city is everything the page needs, ready to be written into it: the files
 // with their plots, the districts, and a few words about the repository.
 
-export const LANDS = ["plain", "beach"] as const;
+export const LANDS = ["auto", "light", "dark", "beach"] as const;
 export type Land = (typeof LANDS)[number];
 
 export interface City {

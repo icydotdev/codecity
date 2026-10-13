@@ -48,7 +48,6 @@
       header { position: fixed; left: 20px; top: 16px; max-width: min(520px, calc(100vw - 40px)); pointer-events: none; padding: 10px 14px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
       h1 { margin: 0; font: 600 30px/1.05 var(--label); letter-spacing: 0.08em; text-transform: uppercase; overflow-wrap: anywhere; }
       .sub { margin-top: 6px; color: var(--soft); }
-      #lands { display: inline-flex; margin-top: 10px; pointer-events: auto; }
       #news { display: block; }
       #news { pointer-events: auto; margin-top: 10px; display: none; font: inherit; color: var(--ink); background: none; border: 1px solid var(--hot); border-radius: 2px; padding: 4px 9px; cursor: pointer; }
       #news b { color: var(--hot); }
@@ -56,18 +55,32 @@
       #tools { position: fixed; right: 20px; top: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
       #search { width: 230px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 7px 9px; outline: none; backdrop-filter: blur(6px); }
       #search:focus { border-color: var(--accent); }
-      .row { display: flex; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; background: var(--panel); backdrop-filter: blur(6px); }
-      .row button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); background: none; border: 0; border-left: 1px solid var(--line); padding: 8px 10px; cursor: pointer; }
-      .row button:first-child { border-left: 0; }
-      .row button:hover { color: var(--ink); }
-      .row button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-      button:focus-visible, #search:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-      #windows { display: none; }
-      #heights { display: none; }
-      /* What a row is for. Not a choice, so it must not look like one: the choices are capitals in the
-         label face; this is small plain type on a tinted ground, with a rule between it and them. */
-      .row > span { display: flex; align-items: center; font: 11px/1 var(--mono); color: var(--soft); background: color-mix(in srgb, var(--ink) 8%, transparent); border-right: 1px solid var(--line); padding: 0 9px; white-space: nowrap; }
-      .row > span + button { border-left: 0; }
+      /* The settings: one panel, what each row is for down the left, its choices lined up on the right.
+         A label is small plain type; a choice is capitals in the label face, so the two cannot be confused. */
+      #panel { display: grid; grid-template-columns: auto auto; align-items: center; gap: 7px 12px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      .line { display: contents; }
+      .line[hidden] { display: none; }
+      .lab { font: 11px/1 var(--mono); color: var(--soft); white-space: nowrap; }
+      .pair { display: flex; align-items: center; gap: 8px; }
+      .seg { display: inline-flex; justify-self: start; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+      .seg button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); background: none; border: 0; border-left: 1px solid var(--line); padding: 7px 9px; cursor: pointer; white-space: nowrap; }
+      .seg button:first-child { border-left: 0; }
+      .seg button:hover { color: var(--ink); }
+      .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+      #panel select { justify-self: start; appearance: none; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238c97a5'/%3E%3C/svg%3E") no-repeat right 8px center; border: 1px solid var(--line); border-radius: 2px; padding: 7px 24px 7px 9px; cursor: pointer; }
+      #panel select:hover { color: var(--ink); }
+      #panel select.on { background-color: var(--ink); color: var(--paper); border-color: var(--ink); }
+      #panel option { color: #12161b; background: #fff; text-transform: none; letter-spacing: 0; }
+      button:focus-visible, select:focus-visible, #search:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+      /* Live updates: a switch, because it is on or it is off. */
+      #live { width: 32px; height: 18px; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb, var(--ink) 14%, transparent); cursor: pointer; position: relative; }
+      #live i { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line); transition: left 0.12s; }
+      #live[aria-checked="true"] { background: var(--fresh); border-color: var(--fresh); }
+      #live[aria-checked="true"] i { left: 16px; background: #fff; border-color: #fff; }
+      #live:disabled { cursor: default; opacity: 0.45; }
+      #live-note { font: 11px/1 var(--mono); color: var(--soft); white-space: nowrap; }
+      #live-note.waiting { color: var(--amber); font-weight: 600; }
 
       #legend { position: fixed; right: 20px; bottom: 54px; min-width: 210px; max-width: 310px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
       #legend:empty { display: none; }
@@ -101,12 +114,6 @@
       #card a, #card button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; }
       #card a { background: var(--ink); color: var(--paper); }
 
-      #live[hidden] { display: none; }
-      /* A dot on the label: green while changes are followed, grey when they are not. */
-      #live > span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; background: var(--fresh); }
-      #live.lost > span::before { background: var(--soft); }
-      #live.waiting button[data-id="off"] { background: var(--amber); color: #14181e; }
-      #live button:disabled { cursor: default; opacity: 0.5; }
       /* The timeline is a thing to start, not a setting: a solid button by itself, bottom left. */
       #era { position: fixed; left: 20px; bottom: 18px; display: flex; align-items: center; gap: 8px; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--paper); background: var(--ink); border: 1px solid var(--ink); border-radius: 2px; padding: 9px 12px; cursor: pointer; }
       #era i { width: 0; height: 0; border-left: 8px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
@@ -129,15 +136,17 @@
     <header>
       <h1 id="name"></h1>
       <div class="sub"><span id="sub"></span></div>
-      <div class="row" id="lands" role="group" aria-label="Landscape"></div>
       <button id="news" type="button"></button>
     </header>
     <div id="tools">
       <input id="search" type="search" placeholder="Find a file  ( / )" autocomplete="off" spellcheck="false" aria-label="Find a file" />
-      <div class="row" id="lenses" role="group" aria-label="Colour the map by"><span>colour by</span></div>
-      <div class="row" id="windows" role="group" aria-label="Changed within"><span>changed in</span></div>
-      <div class="row" id="heights" role="group" aria-label="Height shows"><span>height is</span></div>
-      <div class="row" id="live" role="group" aria-label="Live updates" hidden><span>live updates</span><button type="button" data-id="on">On</button><button type="button" data-id="off">Paused</button></div>
+      <div id="panel">
+        <div class="line"><span class="lab" id="lab-lenses">colour by</span><div class="seg" id="lenses" role="group" aria-labelledby="lab-lenses"></div></div>
+        <div class="line" id="line-windows"><span class="lab" id="lab-windows">changed in</span><div class="pair"><div class="seg" id="windows" role="group" aria-labelledby="lab-windows"></div><select id="span" aria-label="Changed in the last"></select></div></div>
+        <div class="line" id="line-heights"><span class="lab" id="lab-heights">height is</span><div class="seg" id="heights" role="group" aria-labelledby="lab-heights"></div></div>
+        <div class="line" id="line-live" hidden><span class="lab" id="lab-live">live updates</span><div class="pair"><button type="button" id="live" role="switch" aria-checked="true" aria-labelledby="lab-live"><i></i></button><span id="live-note">on</span></div></div>
+        <div class="line"><label class="lab" for="lands">theme</label><select id="lands"></select></div>
+      </div>
     </div>
     <button type="button" id="era"><i aria-hidden="true"></i>Play timeline</button>
     <div id="legend"></div>

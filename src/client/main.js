@@ -60,13 +60,18 @@ const wake = () => (frames = 3);
 // same white light, so a colour means the same thing wherever the town stands. What it stands on is taste.
 const DAYLIGHT = { ui: "light", card: 0xfbfbfc, slab: 0xbcc3cb, old: 0x4a5670, other: 0xaab2bc, accent: 0x1f4bff, hot: 0xff4f2e, fresh: 0x0fa97c, amber: 0xf59a00, bounce: 0xd2d7dd, sun: 2.0, air: 1.5 };
 const LANDS = {
-  plain: matchMedia("(prefers-color-scheme: dark)").matches
-    ? { label: "Plain", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, base: 0x1c2129, rim: 0x39424f, halo: 0x10141a, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1 }
-    : { label: "Plain", ground: 0xd2d7dd, plates: [0xe2e5e9, 0xeaecef, 0xf1f2f4], park: 0xc2d6c6, dim: 0xd6dadf, base: 0xdde1e6, rim: 0xffffff, halo: 0xc3c9d1 },
+  light: { label: "Light", ground: 0xd2d7dd, plates: [0xe2e5e9, 0xeaecef, 0xf1f2f4], park: 0xc2d6c6, dim: 0xd6dadf, base: 0xdde1e6, rim: 0xffffff, halo: 0xc3c9d1 },
+  dark: { label: "Dark", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, base: 0x1c2129, rim: 0x39424f, halo: 0x10141a, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1 },
   beach: { label: "Beach", ground: 0x7fc4d0, plates: [0xf1e2bd, 0xf5ead0, 0xf8f1e0], park: 0xf3b89a, dim: 0xe3d3a8 },
 };
 for (const id in LANDS) LANDS[id] = { ...DAYLIGHT, ...LANDS[id], id };
-let T = LANDS.plain;
+// What can be chosen. "auto" is light or dark, whichever the machine is set to, and is where everyone starts.
+const THEMES = [["auto", "Auto"], ...Object.entries(LANDS).map(([id, t]) => [id, t.label])];
+const system = matchMedia("(prefers-color-scheme: dark)");
+/** The theme as chosen ("auto" among them), from whatever was asked for or remembered. Names that no longer exist mean auto. */
+const themeOf = (name) => (THEMES.some(([id]) => id === name) ? name : "auto");
+let chosen = "auto";
+let T = LANDS.light;
 const PALETTE = [0x1f4bff, 0xff4f2e, 0x12a37a, 0xf59a00, 0x9b4dff, 0x00a3c7, 0xe0457b].map((hex) => new THREE.Color(hex));
 const C = Object.fromEntries(["card", "slab", "park", "dim", "old", "other", "accent", "hot", "fresh", "amber"].map((key) => [key, new THREE.Color(T[key])]));
 
@@ -301,17 +306,21 @@ function field(group, grow, y, hex) {
   mesh.receiveShadow = true;
   group.add(mesh);
 }
+/**
+ * The town stands on a board, as a model does: a soft shadow, a bright edge, then the board itself.
+ * It gives the map an end, which bare ground running off in every direction did not.
+ */
+function board(colours) {
+  const group = new THREE.Group();
+  const edge = 6;
+  field(group, edge + 1.6, 0.008, colours.halo);
+  field(group, edge + 0.28, 0.016, colours.rim);
+  field(group, edge, 0.024, colours.base);
+  return group;
+}
 const SCENERY = {
-  plain() {
-    // The town stands on a board, as a model does: a soft shadow, a bright edge, then the board
-    // itself. It gives the map an end, which bare ground running off in every direction did not.
-    const group = new THREE.Group();
-    const edge = 6;
-    field(group, edge + 1.6, 0.008, LANDS.plain.halo);
-    field(group, edge + 0.28, 0.016, LANDS.plain.rim);
-    field(group, edge, 0.024, LANDS.plain.base);
-    return group;
-  },
+  light: () => board(LANDS.light),
+  dark: () => board(LANDS.dark),
   beach() {
     const s = pieces();
     const shore = 9;
@@ -358,7 +367,8 @@ const retire = (object) => {
 
 /** Change what the town stands on. Nothing about the buildings moves or changes shape. */
 function land(id) {
-  T = LANDS[id] ?? LANDS.plain;
+  chosen = themeOf(id);
+  T = LANDS[chosen === "auto" ? (system.matches ? "dark" : "light") : chosen];
   document.documentElement.classList.toggle("dark", T.ui === "dark");
   scene.background.set(T.ground);
   ground.material.color.set(T.ground);
@@ -377,9 +387,9 @@ function land(id) {
   }
   for (const [key, group] of built) group.visible = key === T.id;
   pave();
-  for (const b of $("lands").children) b.setAttribute("aria-pressed", String(b.dataset.id === T.id));
+  $("lands").value = chosen;
   try {
-    localStorage.setItem("codecity:land", T.id);
+    localStorage.setItem("codecity:land", chosen);
   } catch {
     /* storage switched off */
   }
@@ -437,11 +447,11 @@ const WINDOWS = [
   { id: "auto", label: "Auto" },
   { id: "pull", label: "Last pull" },
   { id: "visit", label: "Since last visit", since: () => lastSeen },
-  { id: "1d", label: "24 h", since: () => NOW - DAY },
-  { id: "7d", label: "7 d", since: () => NOW - 7 * DAY },
-  { id: "30d", label: "30 d", since: () => NOW - 30 * DAY },
-  { id: "90d", label: "90 d", since: () => NOW - 90 * DAY },
-  { id: "1y", label: "1 y", since: () => NOW - 365 * DAY },
+  { id: "1d", label: "the last 24 hours", fixed: true, since: () => NOW - DAY },
+  { id: "7d", label: "the last 7 days", fixed: true, since: () => NOW - 7 * DAY },
+  { id: "30d", label: "the last 30 days", fixed: true, since: () => NOW - 30 * DAY },
+  { id: "90d", label: "the last 90 days", fixed: true, since: () => NOW - 90 * DAY },
+  { id: "1y", label: "the last year", fixed: true, since: () => NOW - 365 * DAY },
 ];
 
 // "Lately" and "long ago" mean different things in a project a month old and one ten years old. So Auto
@@ -585,10 +595,14 @@ function paint() {
   const note = clock === null && tallBy === "usedBy" ? `<h2>Height</h2><p>How many files import each one. Not its length.</p>` : "";
   $("legend").innerHTML = found + (clock === null ? lens.legend() : era) + note;
   for (const b of $("lenses").querySelectorAll("button")) b.setAttribute("aria-pressed", String(clock === null && b.dataset.id === lens.id));
-  $("windows").style.display = clock === null && lens.id === "recent" ? "flex" : "none";
+  $("line-windows").hidden = !(clock === null && lens.id === "recent");
   for (const b of $("windows").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === windowId)), (b.hidden = (b.dataset.id === "visit" && !lastSeen) || (b.dataset.id === "pull" && !inPull.size));
+  // The dropdown shows its own choice when a length of time is what is showing, and its prompt when not.
+  const fixed = WINDOWS.some((w) => w.fixed && w.id === windowId);
+  $("span").value = fixed ? windowId : "";
+  $("span").classList.toggle("on", fixed);
   for (const b of $("heights").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === tallBy));
-  $("heights").style.display = clock === null && files.some((f) => f.usedBy.length) ? "flex" : "none";
+  $("line-heights").hidden = !(clock === null && files.some((f) => f.usedBy.length));
 }
 const button = (parent, id, label, act) => {
   const b = document.createElement("button");
@@ -599,8 +613,15 @@ const button = (parent, id, label, act) => {
   parent.append(b);
 };
 for (const l of LENSES) button($("lenses"), l.id, l.label, () => (leaveHistory(), (lens = l), paint()));
-for (const w of WINDOWS) button($("windows"), w.id, w.label, () => ((windowId = w.id), paint()));
-for (const id in LANDS) button($("lands"), id, LANDS[id].label, () => land(id));
+const option = (parent, id, label) => parent.append(Object.assign(document.createElement("option"), { value: id, textContent: label }));
+for (const w of WINDOWS.filter((w) => !w.fixed)) button($("windows"), w.id, w.label, () => ((windowId = w.id), paint()));
+option($("span"), "", "A length of time…");
+for (const w of WINDOWS.filter((w) => w.fixed)) option($("span"), w.id, w.label);
+$("span").onchange = (e) => ((windowId = e.target.value || "auto"), paint());
+for (const [id, label] of THEMES) option($("lands"), id, label);
+$("lands").onchange = (e) => land(e.target.value);
+// On Auto the map follows the machine, at once, if it goes dark or light while the page is open.
+system.addEventListener("change", () => chosen === "auto" && land("auto"));
 for (const id in HEIGHTS) button($("heights"), id, HEIGHTS[id].label, () => measure(id));
 /** Change what height means. Nothing moves; every building grows or sinks where it stands. */
 function measure(by) {
@@ -797,7 +818,7 @@ function mount(data, animate) {
     view.span = goal.span = fit();
     aim();
   }
-  land(animate ? T.id : (D.land ?? stored() ?? "plain"));
+  land(animate ? chosen : (D.land ?? stored() ?? "auto"));
   show(picked);
 }
 const stored = () => {
@@ -927,7 +948,7 @@ addEventListener("keydown", (e) => {
   if (key === "0") Object.assign(goal, { x: 0, z: 0, span: fit() });
   if (key === "l") (linksOn = !linksOn), wire(picked);
   if (key === "h" && clock === null && files.some((f) => f.usedBy.length)) measure(tallBy === "lines" ? "usedBy" : "lines");
-  if (key === "t") land(Object.keys(LANDS)[(Object.keys(LANDS).indexOf(T.id) + 1) % Object.keys(LANDS).length]);
+  if (key === "t") land(THEMES[(THEMES.findIndex(([id]) => id === chosen) + 1) % THEMES.length][0]);
   if (key === "p" || key === " ") e.preventDefault(), clock === null ? enterHistory() : play(!playing);
   const n = Number(e.key);
   if (n >= 1 && n <= LENSES.length) leaveHistory(), (lens = LENSES[n - 1]), paint();
@@ -940,31 +961,26 @@ resize();
 
 // Under a watcher: listen for the next town.
 if (D.live) {
-  const row = $("live");
-  row.hidden = false;
-  const [label, on, off] = row.children;
-  // A switch. Paused, the map holds still while files change (for reading it, or for showing it to
+  $("line-live").hidden = false;
+  const toggle = $("live");
+  const note = $("live-note");
+  // A switch. Off, the map holds still while files change (for reading it, or for showing it to
   // someone), and the newest town waits; on again, it catches up in one step.
   let paused = false;
   let connected = false;
   let waiting = null;
   const say = () => {
-    label.textContent = connected ? "live updates" : "live updates stopped";
-    label.title = connected ? "" : "The codecity command is no longer running";
-    on.setAttribute("aria-pressed", String(connected && !paused));
-    off.setAttribute("aria-pressed", String(connected && paused));
-    off.textContent = paused && waiting ? "Paused · changes waiting" : "Paused";
-    on.disabled = off.disabled = !connected;
-    row.classList.toggle("lost", !connected || paused);
-    row.classList.toggle("waiting", connected && paused && waiting !== null);
+    toggle.setAttribute("aria-checked", String(connected && !paused));
+    toggle.disabled = !connected;
+    toggle.title = !connected ? "The codecity command is no longer running" : paused ? "Follow changes again" : "Hold the map still";
+    note.textContent = !connected ? "stopped" : !paused ? "on" : waiting ? "paused · changes waiting" : "paused";
+    note.classList.toggle("waiting", connected && paused && waiting !== null);
   };
-  const set = (pause) => {
-    paused = pause;
+  toggle.onclick = () => {
+    paused = !paused;
     if (!paused && waiting) mount(waiting, true), (waiting = null);
     say();
   };
-  on.onclick = () => set(false);
-  off.onclick = () => set(true);
   const feed = new EventSource("events");
   feed.onopen = () => ((connected = true), say());
   feed.onerror = () => ((connected = false), say());

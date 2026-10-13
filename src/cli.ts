@@ -21,7 +21,7 @@ if (args.includes("--help") || args.includes("-h")) {
     -o <file>         Write the map to one HTML file and stop, to keep or share
     --once            The same, to a temporary folder
     --port <number>   Port to serve the live map on (default: 3737)
-    --land <name>     Theme: ${LANDS.join(", ")}
+    --theme <name>    Theme: ${LANDS.join(", ")} (default: auto)
     --no-browser      Don't open the browser automatically
     -h, --help        Show this help message
 `);
@@ -49,7 +49,8 @@ const fail = (message: string): never => {
 };
 
 const out = take("-o", "--out");
-const wanted = take("--land", "--theme");
+// "plain" was the name of the theme that is now light or dark, whichever the machine is set to.
+const wanted = ((name) => (name === "plain" ? "auto" : name))(take("--land", "--theme"));
 const port = Number(take("--port") ?? 3737);
 // Watching used to be asked for. It is what happens now, so the flag is accepted and does nothing.
 has("-w", "--watch");
