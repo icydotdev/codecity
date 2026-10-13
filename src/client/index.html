@@ -45,8 +45,8 @@
       .district.minor { font-weight: 500; font-size: 10px; color: var(--soft); border-color: var(--soft); }
       .district.minor::after { background: var(--soft); height: 9px; }
 
-      header { position: fixed; left: 20px; top: 16px; pointer-events: none; padding: 10px 14px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
-      h1 { margin: 0; font: 600 30px/1 var(--label); letter-spacing: 0.08em; text-transform: uppercase; }
+      header { position: fixed; left: 20px; top: 16px; max-width: min(520px, calc(100vw - 40px)); pointer-events: none; padding: 10px 14px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
+      h1 { margin: 0; font: 600 30px/1.05 var(--label); letter-spacing: 0.08em; text-transform: uppercase; overflow-wrap: anywhere; }
       .sub { margin-top: 6px; color: var(--soft); }
       #lands { display: inline-flex; margin-top: 10px; pointer-events: auto; }
       #news { display: block; }
@@ -80,12 +80,12 @@
       #legend li em { font-style: normal; color: var(--soft); white-space: nowrap; }
       #legend p { margin: 7px 0 0; color: var(--soft); font-size: 11px; }
 
-      #tip { position: fixed; pointer-events: none; display: none; max-width: 420px; padding: 6px 9px; background: var(--ink); color: var(--paper); border-radius: 2px; font-size: 12px; }
+      #tip { position: fixed; pointer-events: none; display: none; max-width: min(420px, calc(100vw - 16px)); overflow-wrap: anywhere; padding: 6px 9px; background: var(--ink); color: var(--paper); border-radius: 2px; font-size: 12px; }
       #tip small { display: block; opacity: 0.7; font-size: 11px; }
 
       #card { position: fixed; left: 20px; bottom: 18px; width: 330px; display: none; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
-      #card .dir { color: var(--soft); word-break: break-all; }
-      #card .file { font-size: 16px; font-weight: 600; word-break: break-all; }
+      #card .dir { color: var(--soft); overflow-wrap: anywhere; }
+      #card .file { font-size: 16px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
       #card dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin: 10px 0; }
       #card dt { color: var(--soft); }
       #card dd { margin: 0; }
@@ -93,7 +93,7 @@
       #card .hops { margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
       #card .hops h3 { flex-basis: 100%; margin: 0 0 2px; display: flex; align-items: center; gap: 7px; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; }
       #card .hops h3 i { width: 14px; height: 4px; }
-      #card .hops .hop { font: 12px/1 var(--mono); letter-spacing: 0; text-transform: none; padding: 4px 6px; border-color: var(--line); }
+      #card .hops .hop { font: 12px/1.25 var(--mono); letter-spacing: 0; text-transform: none; padding: 4px 6px; border-color: var(--line); max-width: 100%; text-align: left; overflow-wrap: anywhere; }
       #card .hops .hop:hover { border-color: var(--ink); }
       #card .hops span { color: var(--soft); font-size: 11px; }
       #card a, #card button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; }

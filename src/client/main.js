@@ -854,7 +854,7 @@ canvas.addEventListener("pointermove", (e) => {
     const [dir, name] = split(f.path);
     const size = f.kind === "asset" ? "not text" : count(clock === null ? f.lines : linesAt(f, clock), "line");
     tip.innerHTML = `${esc(dir)}<b>${esc(name)}</b><small>${size}${f.usedBy.length ? " · imported by " + f.usedBy.length : ""} · ${f.dirty ? "being worked on now" : "changed " + ago(f.modified)}</small>`;
-    tip.style.left = `${Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8)}px`;
+    tip.style.left = `${Math.max(8, Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8))}px`;
     tip.style.top = `${Math.max(8, e.clientY - tip.offsetHeight - 12)}px`;
   }
 });
