@@ -119,14 +119,21 @@
       #card a { background: var(--ink); color: var(--paper); }
 
       /* The timeline is a thing to start, not a setting: a solid button by itself, bottom left. */
+      #era, #share { height: 32px; box-sizing: border-box; }
       #era { position: fixed; left: 20px; bottom: 18px; display: flex; align-items: center; gap: 8px; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--paper); background: var(--ink); border: 1px solid var(--ink); border-radius: 2px; padding: 9px 12px; cursor: pointer; }
       #era i { width: 0; height: 0; border-left: 8px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
       #era:hover { opacity: 0.86; }
       #era[hidden] { display: none; }
       /* Share: the timeline button's twin, in the middle. While the timeline plays, its bar has the spot. */
-      #share { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--paper); background: var(--ink); border: 1px solid var(--ink); border-radius: 2px; padding: 9px 12px; cursor: pointer; }
+      #share { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--paper); background: var(--ink); border: 1px solid var(--ink); border-radius: 2px; padding: 0 12px; cursor: pointer; transition: box-shadow 0.25s ease; }
       #share:hover { opacity: 0.86; }
-      #share svg { margin: -2px 0; } /* as tall as the timeline button, icon or not */
+      #share svg { width: 14px; height: 14px; flex: none; }
+      /* Copied: a tick in the colour new files have, and a ring of it that fades. */
+      #share .tick, #share.done .icon { display: none; }
+      #share.done .tick { display: block; color: var(--fresh); }
+      #share.done { animation: copied 1.6s ease-out; }
+      @keyframes copied { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fresh) 70%, transparent); } 30% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--fresh) 35%, transparent); } to { box-shadow: 0 0 0 9px transparent; } }
+      @media (prefers-reduced-motion: reduce) { #share.done { animation: none; } }
       #share[hidden], body:has(#time:not([hidden])) #share { display: none; }
       /* The hints give it the spot: above it where there is room beside the key, otherwise not at all. */
       body:has(#share:not([hidden])) #help { bottom: 58px; }
@@ -153,11 +160,13 @@
         .sub { margin-top: 3px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #news { margin-top: 7px; font-size: 12px; }
 
-        #era, #gear { bottom: 10px; padding: 12px 14px; font-size: 12px; }
+        #era, #gear { bottom: 10px; padding: 0 14px; font-size: 12px; }
+        #gear { height: 40px; }
         #era { left: 10px; }
-        #share { bottom: 10px; padding: 12px 14px; font-size: 12px; }
+        #era, #share { height: 40px; }
+        #share { bottom: 10px; padding: 0 14px; font-size: 12px; }
         #share span { display: none; } /* the icon alone: there is no room beside the timeline button */
-        #share svg { width: 16px; height: 16px; margin: -2px 0; }
+        #share svg { width: 16px; height: 16px; }
         #gear { display: block; position: fixed; right: 10px; font: 600 12px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); background: var(--panel); border: 1px solid var(--ink); border-radius: 2px; cursor: pointer; backdrop-filter: blur(6px); }
         body.open #gear { background: var(--ink); color: var(--paper); }
 
@@ -209,7 +218,7 @@
     </div>
     <button type="button" id="gear" aria-expanded="false" aria-controls="tools">Settings</button>
     <button type="button" id="era"><i aria-hidden="true"></i>Play timeline</button>
-    <button type="button" id="share" hidden><svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v9M4.75 4.75 8 1.5l3.25 3.25M5 7.5H3.5v7h9v-7H11"/></svg><span>Share</span></button>
+    <button type="button" id="share" hidden><svg class="icon" aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v9M4.75 4.75 8 1.5l3.25 3.25M5 7.5H3.5v7h9v-7H11"/></svg><svg class="tick" aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></svg><span>Share</span></button>
     <div id="legend"></div>
     <div id="tip"></div>
     <aside id="card" aria-live="polite"></aside>

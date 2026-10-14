@@ -1153,14 +1153,23 @@ openView(location.hash.length > 1 ? location.hash : D.view ? `#${D.view}` : "");
 // ------------------------------------------------------------------ sharing
 // Share, where the page has an address someone else can open: it copies a link to exactly this view
 // (or, on a phone, opens the phone's own share sheet). Save a copy, while live: this map as one file.
-const shareable = /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+// (?share in the address shows it anyway, to try it out on a map served from this machine.)
+const shareable = (/^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) || new URLSearchParams(location.search).has("share");
 $("share").hidden = !shareable;
 $("acts").hidden = !D.live;
 $("share").setAttribute("aria-label", "Share a link to this view");
 $("share").onclick = async () => {
   keepView(0);
-  const label = $("share").querySelector("span");
-  const said = (text) => ((label.textContent = text), setTimeout(() => (label.textContent = "Share"), 1800));
+  const button = $("share");
+  const label = button.querySelector("span");
+  const done = (text) => {
+    clearTimeout(button.undo);
+    button.classList.remove("done");
+    void button.offsetWidth; // so that a second copy plays the ring again
+    button.classList.add("done");
+    label.textContent = text;
+    button.undo = setTimeout(() => (button.classList.remove("done"), (label.textContent = "Share")), 2200);
+  };
   if (navigator.share && matchMedia("(pointer: coarse)").matches) {
     try {
       await navigator.share({ title: `${D.name} · codecity`, url: location.href });
@@ -1171,10 +1180,16 @@ $("share").onclick = async () => {
   }
   try {
     await navigator.clipboard.writeText(location.href);
-    said("Link copied");
   } catch {
-    said("Copy the address");
+    // No clipboard here (a page served over plain http): the old way still works.
+    const field = Object.assign(document.createElement("textarea"), { value: location.href });
+    document.body.append(field);
+    field.select();
+    const copied = document.execCommand("copy");
+    field.remove();
+    if (!copied) return void (label.textContent = "Copy the address bar");
   }
+  done("URL copied to clipboard");
 };
 // The copy is made by the codecity command, from the town as it is now, without the live feed.
 $("keep").onclick = () => ($("keep").href = `copy?view=${encodeURIComponent(viewOf())}`);
