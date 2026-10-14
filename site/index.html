@@ -15,6 +15,9 @@
     <link rel="icon" href="/favicon.ico" sizes="32x32 48x48" />
     <link rel="icon" href="/assets/logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Vercel Web Analytics: page views and two events, no cookies. The maps themselves send nothing. -->
+    <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+    <script defer src="/_vercel/insights/script.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet" />
@@ -413,6 +416,7 @@ npx codecity -o map.html</pre>
       }
       async function draw(full) {
         const mine = ++run;
+        window.va("event", { name: "Draw", data: { repo: full } });
         say(null);
         $("repo").value = full;
         $("draw").hidden = true;
@@ -476,6 +480,7 @@ npx codecity -o map.html</pre>
       copy.onclick = async () => {
         try {
           await navigator.clipboard.writeText(document.getElementById("cmd").textContent);
+          window.va("event", { name: "Copy command" });
           copy.textContent = "Copied";
         } catch {
           copy.textContent = "Select it";
