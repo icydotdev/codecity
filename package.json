@@ -1,6 +1,6 @@
 {
   "name": "codecity",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "A 3D map of your codebase. Every file is a building, and every building keeps its place.",
   "type": "module",
   "bin": {
