@@ -3,3 +3,4 @@ dist
 out
 *.tsbuildinfo
 .DS_Store
+_site

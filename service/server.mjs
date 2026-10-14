@@ -124,9 +124,8 @@ function ask(repo) {
 
 async function next() {
   if (drawing || !waiting.length) return;
-  drawing = waiting.shift();
-  const { key, repo } = drawing;
-  const started = Date.now();
+  drawing = { ...waiting.shift(), stage: "cloning", started: Date.now() };
+  const { key, repo, started } = drawing;
   try {
     await draw(repo);
     failures.delete(key);
@@ -180,6 +179,7 @@ async function draw({ full, branch }) {
       "clone",
     );
     const head = (await run("git", ["-C", dir, "rev-parse", "HEAD"], 10, "read")).trim();
+    if (drawing) drawing.stage = "drawing";
     const out = path.join(place, "map.html");
     await run(
       process.execPath,
@@ -187,7 +187,8 @@ async function draw({ full, branch }) {
       LIMIT.drawSeconds,
       "draw",
     );
-    const zipped = zlib.gzipSync(await fs.readFile(out), { level: 9 });
+    const html = (await fs.readFile(out, "utf8")).replace("</header>", () => BACK + "</header>");
+    const zipped = zlib.gzipSync(html, { level: 9 });
     await fs.mkdir(MAPS, { recursive: true });
     await fs.writeFile(mapFile(key) + ".part", zipped);
     await fs.rename(mapFile(key) + ".part", mapFile(key));
@@ -196,6 +197,9 @@ async function draw({ full, branch }) {
     await fs.rm(place, { recursive: true, force: true });
   }
 }
+
+/** A way back to the site from a map, under the repository's name. */
+const BACK = `<a href="/" style="pointer-events:auto;display:inline-block;margin-top:9px;font:600 11px/1 var(--label);letter-spacing:0.14em;text-transform:uppercase;color:var(--soft);text-decoration:none">&larr; codecity &middot; draw another repository</a>`;
 
 /** Keep the maps on disk under the limit, dropping the oldest first. */
 async function trim() {
@@ -220,101 +224,20 @@ function allowed(visitor) {
 // first, so this limit is a courtesy; the fixed queue and the single drawer are what hold the cost.
 const visitorOf = (req) => String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() || req.socket.remoteAddress || "";
 
-/** "github.com/a/b", "https://github.com/a/b.git", "a/b", "git@github.com:a/b" → { owner, name }. */
-function readAddress(text) {
-  const m = /^(?:(?:https?:\/\/)?(?:www\.)?github\.com[/:]|git@github\.com:)?([^/\s]+)\/([^/\s#?]+)/i.exec(text.trim());
-  if (!m) return null;
-  const owner = m[1];
-  const name = m[2].replace(/\.git$/, "");
-  return NAME.test(owner) && NAME.test(name) ? { owner, name } : null;
-}
-
-// ------------------------------------------------------------------ pages
-const esc = (text) => String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-const EXAMPLES = ["react/react", "sveltejs/svelte", "expressjs/express", "icydotdev/codecity"];
-
-function shell(title, body, { refresh } = {}) {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-${refresh ? `<meta http-equiv="refresh" content="${refresh}" />` : ""}
-<title>${esc(title)}</title>
-<style>
-  :root { --paper: #eef0f3; --card: #fbfbfc; --ink: #12161b; --soft: #5b6672; --line: #c9cfd6; --hot: #ff4f2e; color-scheme: light dark; }
-  @media (prefers-color-scheme: dark) { :root { --paper: #15191e; --card: #1d2228; --ink: #e8ecf1; --soft: #97a2ae; --line: #343c45; } }
-  * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: var(--paper); color: var(--ink); font: 16px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  main { width: min(560px, 100%); }
-  h1 { margin: 0 0 6px; font: 700 28px/1.1 system-ui, sans-serif; letter-spacing: 0.04em; text-transform: uppercase; }
-  h1 a { color: inherit; text-decoration: none; }
-  p { margin: 0 0 14px; color: var(--soft); }
-  p.lead { color: var(--ink); }
-  form { display: flex; gap: 8px; margin: 22px 0 12px; }
-  input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink); background: var(--card); border: 1px solid var(--ink); border-radius: 2px; padding: 11px 12px; }
-  button { font: 600 13px/1 system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: var(--paper); background: var(--ink); border: 1px solid var(--ink); border-radius: 2px; padding: 0 16px; cursor: pointer; }
-  input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--hot); outline-offset: 2px; }
-  .try { font-size: 14px; }
-  .try a { color: var(--ink); margin-right: 12px; white-space: nowrap; }
-  .error { color: var(--hot); }
-  code { color: var(--ink); }
-  .bar { height: 3px; margin: 18px 0; background: var(--line); overflow: hidden; }
-  .bar i { display: block; width: 30%; height: 100%; background: var(--hot); animation: go 1.4s ease-in-out infinite; }
-  @keyframes go { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
-  @media (prefers-reduced-motion: reduce) { .bar i { animation: none; width: 100%; opacity: 0.5; } }
-  footer { margin-top: 34px; font-size: 13px; }
-  footer a { color: var(--soft); }
-</style>
-</head>
-<body><main>${body}
-<footer><p>Draws public repositories only. Your own code, private or not, stays on your machine with <code>npx codecity</code>. <a href="https://codecity.icy.dev">About codecity</a></p></footer>
-</main></body>
-</html>`;
-}
-
-const form = (value = "") => `<form action="/" method="get">
-  <label for="repo" hidden>GitHub repository</label>
-  <input id="repo" name="repo" value="${esc(value)}" placeholder="github.com/owner/repository" autocomplete="off" autocapitalize="off" spellcheck="false" required />
-  <button type="submit">Draw it</button>
-</form>`;
-
-const home = (problem, value) =>
-  shell(
-    "codecity · any GitHub repository as a city",
-    `<h1><a href="/">codecity</a></h1>
-<p class="lead">Any public GitHub repository, drawn as a city. One building per file, coloured by what changed lately, with its whole history to play back.</p>
-${form(value)}
-${problem ? `<p class="error">${esc(problem)}</p>` : ""}
-<p class="try">Try ${EXAMPLES.map((full) => `<a href="/${full}">${full}</a>`).join("")}</p>`,
-  );
-
-const notice = (title, text, value) => shell(`${title} · codecity`, `<h1><a href="/">codecity</a></h1><p class="lead">${title}</p><p>${text}</p>${form(value)}`);
-
-function waitingPage(full) {
-  const place = placeInLine(keyOf(full));
-  const where = place === 0 ? "Cloning it and reading its history now." : `${place === 1 ? "One repository is" : `${place} repositories are`} ahead of it.`;
-  return shell(
-    `Drawing ${full} · codecity`,
-    `<h1><a href="/">codecity</a></h1>
-<p class="lead">Drawing ${esc(full)}.</p>
-<div class="bar" aria-hidden="true"><i></i></div>
-<p>${where} Small repositories take seconds, big ones a few minutes. This page opens the map when it is ready, and the link stays the same: <code>/${esc(full)}</code>.</p>`,
-    { refresh: 4 },
-  );
-}
-
 // ------------------------------------------------------------------ the server
+// Nothing here is a page for people. The site (codecity.icy.dev) is the front door: it forwards
+// /<owner>/<repo> and /api/ here, shows the progress, and opens the map when it is ready.
+const SITE = process.env.SITE_URL ?? "https://codecity.icy.dev";
 const HEADERS = { "x-content-type-options": "nosniff", "referrer-policy": "no-referrer" };
 // Maps are pages made from other people's repositories: they may run their own script and nothing
 // else, and fetch nothing.
 const MAP_POLICY = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob:; font-src data:; base-uri 'none'; form-action 'none'";
 
-function send(req, res, status, body, type = "text/html; charset=utf-8", extra = {}) {
-  res.writeHead(status, { ...HEADERS, "content-type": type, "cache-control": "no-store", ...extra });
-  res.end(req.method === "HEAD" ? undefined : body);
+const go = (res, to) => (res.writeHead(302, { ...HEADERS, location: to, "cache-control": "no-store" }), res.end());
+function json(req, res, status, body, extra = {}) {
+  res.writeHead(status, { ...HEADERS, "content-type": "application/json", "cache-control": "no-store", ...extra });
+  res.end(req.method === "HEAD" ? undefined : JSON.stringify(body));
 }
-const go = (res, to) => (res.writeHead(302, { ...HEADERS, location: to }), res.end());
 
 function serveMap(req, res, file, size) {
   const zipped = /\bgzip\b/.test(String(req.headers["accept-encoding"] ?? ""));
@@ -322,7 +245,8 @@ function serveMap(req, res, file, size) {
     ...HEADERS,
     "content-type": "text/html; charset=utf-8",
     "content-security-policy": MAP_POLICY,
-    "cache-control": "public, max-age=600",
+    // An hour at the site's edge, so a link that is going round is mostly not served from here.
+    "cache-control": "public, max-age=600, s-maxage=3600",
     vary: "accept-encoding",
     ...(zipped && { "content-encoding": "gzip", "content-length": size }),
   });
@@ -331,32 +255,34 @@ function serveMap(req, res, file, size) {
   (zipped ? stream : stream.pipe(zlib.createGunzip())).pipe(res);
 }
 
-async function map(req, res, owner, name) {
-  if (spent())
-    return send(req, res, 503, notice("Resting until next month.", `This free service has used its share of bandwidth for the month, and maps open again on ${nextMonth()}. Meanwhile, clone the repository and run <code>npx codecity</code> in it: same map, on your own machine.`));
+/**
+ * Where a repository's map stands, and the work to draw it asked for if it is not drawn yet.
+ * `{ state: "ready" | "waiting" | "drawing" | "moved" | "error", ... }`.
+ */
+async function status(req, owner, name) {
+  if (spent()) return { state: "error", reason: "resting", message: `This free service has used its share of bandwidth for the month. Maps open again on ${nextMonth()}.` };
   const key = keyOf(`${owner}/${name}`);
   const stat = await fs.stat(mapFile(key)).catch(() => null);
   if (stat) {
-    // Old enough to draw again: show this one, and draw the new one in the background if there is room.
+    // Old enough to draw again: the old one is shown, and the new one drawn if there is room.
     if (ago(stat.mtimeMs) > LIMIT.freshHours * HOUR && !inLine(key)) lookUp(owner, name).then((repo) => repo.full && ask(repo));
-    return serveMap(req, res, mapFile(key), stat.size);
+    return { state: "ready" };
   }
-  if (inLine(key)) return send(req, res, 202, waitingPage(`${owner}/${name}`));
+  if (inLine(key)) return drawing?.key === key ? { state: "drawing", stage: drawing.stage, since: drawing.started } : { state: "waiting", ahead: placeInLine(key) - (drawing ? 0 : 1) };
   const failed = failures.get(key);
-  if (failed && ago(failed.at) < 10 * 60_000) return send(req, res, 502, notice(`Could not draw ${esc(owner)}/${esc(name)}.`, esc(failed.why)));
+  if (failed && ago(failed.at) < 10 * 60_000) return { state: "error", reason: "failed", message: failed.why };
 
   const repo = await lookUp(owner, name);
-  if (repo.problem === "missing") return send(req, res, 404, notice("No public repository there.", `There is no public repository at github.com/${esc(owner)}/${esc(name)}.`, `${owner}/${name}`));
-  if (repo.problem === "github") return send(req, res, 503, notice("GitHub is not answering just now.", "Try again in a few minutes."), undefined, { "retry-after": "300" });
+  if (repo.problem === "missing") return { state: "error", reason: "missing", message: `There is no public repository at github.com/${owner}/${name}.` };
+  if (repo.problem === "github") return { state: "error", reason: "github", message: "GitHub is not answering just now. Try again in a few minutes." };
   // Its proper name, so that every link to one repository is the same link.
-  if (repo.full !== `${owner}/${name}`) return go(res, `/${repo.full}`);
+  if (repo.full !== `${owner}/${name}`) return { state: "moved", full: repo.full };
   if (repo.mb > LIMIT.repoMB)
-    return send(req, res, 413, notice(`${esc(repo.full)} is too big to draw here.`, `It is ${Math.round(repo.mb).toLocaleString()} MB; the limit here is ${LIMIT.repoMB.toLocaleString()} MB. Clone it and run <code>npx codecity</code> in it instead.`));
-  if (waiting.length >= LIMIT.queue) return send(req, res, 503, notice("Busy right now.", "Too many repositories are waiting to be drawn. Try again in a few minutes."), undefined, { "retry-after": "120" });
-  if (!allowed(visitorOf(req)))
-    return send(req, res, 429, notice("That is a lot of new maps.", `This is a small free service, so each visitor can ask for ${LIMIT.perHour} new maps an hour. Maps already drawn open any time.`), undefined, { "retry-after": "3600" });
+    return { state: "error", reason: "big", message: `${repo.full} is ${Math.round(repo.mb).toLocaleString("en")} MB, and the limit here is ${LIMIT.repoMB.toLocaleString("en")} MB. Clone it and run npx codecity in it instead.` };
+  if (waiting.length >= LIMIT.queue) return { state: "error", reason: "busy", message: "Too many repositories are waiting to be drawn. Try again in a few minutes." };
+  if (!allowed(visitorOf(req))) return { state: "error", reason: "limit", message: `Each visitor can ask for ${LIMIT.perHour} new maps an hour. Maps already drawn open any time.` };
   ask(repo);
-  return send(req, res, 202, waitingPage(repo.full));
+  return drawing?.key === key ? { state: "drawing", stage: drawing.stage, since: drawing.started } : { state: "waiting", ahead: placeInLine(key) - (drawing ? 0 : 1) };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -364,24 +290,25 @@ const server = http.createServer(async (req, res) => {
   const before = req.socket.bytesWritten;
   res.on("close", () => spend(req.socket.bytesWritten - before));
   try {
-    if (req.method !== "GET" && req.method !== "HEAD") return send(req, res, 405, "Method not allowed", "text/plain");
+    if (req.method !== "GET" && req.method !== "HEAD") return json(req, res, 405, { error: "GET only" });
     const url = new URL(req.url ?? "/", "http://localhost");
-    if (url.pathname === "/healthz") return send(req, res, 200, "ok", "text/plain");
-    if (url.pathname === "/") {
-      const value = url.searchParams.get("repo");
-      if (value === null) return send(req, res, 200, home());
-      const found = readAddress(value);
-      return found ? go(res, `/${found.owner}/${found.name}`) : send(req, res, 400, home("That is not the address of a GitHub repository. It looks like github.com/owner/repository.", value));
-    }
+    if (url.pathname === "/healthz") return json(req, res, 200, { ok: true, drawing: drawing?.repo.full ?? null, waiting: waiting.length, bandwidthGB: +(usage.bytes / 1e9).toFixed(3) });
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    const api = parts[0] === "api" && parts[1] === "maps";
+    const [owner, rawName, ...rest] = api ? parts.slice(2) : parts;
+    const name = rawName?.replace(/\.git$/, "");
+    if (!owner || !name || !NAME.test(owner) || !NAME.test(name)) return api ? json(req, res, 404, { state: "error", reason: "address", message: "That is not a GitHub repository." }) : go(res, SITE);
+    if (api) return json(req, res, 200, await status(req, owner, name));
     // github.com/a/b/tree/main/src and the like: the repository is what is meant.
-    if (parts.length > 2 && NAME.test(parts[0]) && NAME.test(parts[1])) return go(res, `/${parts[0]}/${parts[1]}`);
-    if (parts.length !== 2 || !parts.every((part) => NAME.test(part))) return send(req, res, 404, notice("Nothing here.", "Paste the address of a public GitHub repository."));
-    const [owner, name] = [parts[0], parts[1].replace(/\.git$/, "")];
-    return await map(req, res, owner, name);
+    if (rest.length) return go(res, `/${owner}/${name}`);
+    const file = mapFile(keyOf(`${owner}/${name}`));
+    const stat = await fs.stat(file).catch(() => null);
+    if (stat && !spent()) return serveMap(req, res, file, stat.size);
+    // Not drawn yet: the site's page draws it, and comes back here when it is ready.
+    return go(res, `/?repo=${encodeURIComponent(`${owner}/${name}`)}`);
   } catch (error) {
     console.error(error);
-    if (!res.headersSent) send(req, res, 500, notice("Something went wrong.", "Try again in a moment."));
+    if (!res.headersSent) json(req, res, 500, { state: "error", reason: "server", message: "Something went wrong. Try again in a moment." });
     else res.destroy();
   }
 });

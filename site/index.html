@@ -25,11 +25,13 @@
         --hot: #ff4f2e;
         --fresh: #0fa97c;
         --accent: #1f4bff;
+        --ground: #d1d7db;
         --label: "Barlow Condensed", "Avenir Next Condensed", "Arial Narrow", sans-serif;
         --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
         --text: "IBM Plex Sans", system-ui, sans-serif;
       }
       * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
       html { scroll-behavior: smooth; }
       body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 var(--text); -webkit-font-smoothing: antialiased; }
       a { color: inherit; }
@@ -44,18 +46,53 @@
       .top nav a { text-decoration: none; color: var(--soft); }
       .top nav a:hover { color: var(--ink); }
 
-      /* Hero */
-      .hero { padding: 44px 0 26px; }
-      h1 { margin: 0; max-width: 15ch; font: 600 clamp(44px, 8.2vw, 104px)/0.94 var(--label); letter-spacing: 0.01em; text-transform: uppercase; }
+      /* Hero: the React repository building itself, behind the way in. The film's ground is the
+         colour of the hero, so the city stands on the page and not in a box. */
+      .hero { position: relative; overflow: hidden; background: var(--ground); padding-bottom: 64px; }
+      .hero > video, .hero > .veil { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .hero > video { object-fit: cover; object-position: 70% 40%; }
+      .hero > .veil { background: linear-gradient(90deg, var(--ground) 0%, var(--ground) 30%, rgba(209, 215, 219, 0.82) 44%, rgba(209, 215, 219, 0) 62%), linear-gradient(0deg, var(--paper) 0%, rgba(223, 227, 232, 0) 22%); pointer-events: none; }
+      .hero > .wrap { position: relative; }
+      .hero .credit { position: absolute; right: 24px; bottom: 22px; font: 12px/1.4 var(--mono); color: var(--soft); }
+      h1 { margin: 34px 0 0; max-width: 15ch; font: 600 clamp(44px, 7.4vw, 100px)/0.94 var(--label); letter-spacing: 0.01em; text-transform: uppercase; }
       h1 em { font-style: normal; color: var(--hot); }
-      .lede { max-width: 56ch; margin: 22px 0 0; font-size: 19px; color: #2a323c; }
-      .run { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
-      .cmd { display: inline-flex; align-items: center; gap: 14px; padding: 13px 14px 13px 18px; background: var(--ink); color: #fff; border-radius: 3px; font: 500 17px/1 var(--mono); }
+      .lede { max-width: 46ch; margin: 22px 0 0; font-size: 19px; color: #2a323c; }
+      .facts { margin: 16px 0 0; font: 13px/1.5 var(--mono); color: var(--soft); }
+
+      /* The two ways in, laid out like the map's own settings panel: a label, then the control. */
+      .ways { width: min(560px, 100%); margin-top: 30px; border: 1px solid var(--ink); background: var(--card); border-radius: 3px; box-shadow: 0 24px 50px -30px rgba(18, 22, 27, 0.5); }
+      .way { padding: 16px 18px 18px; }
+      .way + .way { border-top: 1px solid var(--line); }
+      .lab { display: block; margin-bottom: 10px; font: 600 12px/1 var(--label); letter-spacing: 0.18em; text-transform: uppercase; color: var(--soft); }
+      .draw { display: flex; gap: 8px; }
+      .draw input { flex: 1; min-width: 0; font: 400 16px/1 var(--mono); color: var(--ink); background: #fff; border: 1px solid var(--ink); border-radius: 2px; padding: 12px 12px; }
+      .draw input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .go { font: 600 13px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: #fff; background: var(--hot); border: 1px solid var(--hot); border-radius: 2px; padding: 0 16px; cursor: pointer; white-space: nowrap; }
+      .go:hover { filter: brightness(0.94); }
+      .try { margin: 10px 0 0; font: 13px/1.6 var(--mono); color: var(--soft); }
+      .try a { color: var(--ink); margin-right: 10px; white-space: nowrap; }
+      .problem { margin: 10px 0 0; font-size: 15px; color: #c23a1f; }
+      .problem[hidden] { display: none; }
+      .cmd { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 12px 11px 16px; background: var(--ink); color: #fff; border-radius: 2px; font: 500 16px/1 var(--mono); }
       .cmd span::before { content: "$ "; color: #7f8b99; }
       .cmd button { font: 600 12px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); background: #fff; border: 0; border-radius: 2px; padding: 7px 9px; cursor: pointer; min-width: 62px; }
-      .ghost { font: 600 13px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; padding: 16px 16px; border: 1px solid var(--ink); border-radius: 3px; }
-      .ghost:hover { background: var(--ink); color: #fff; }
-      .facts { margin: 18px 0 0; font: 13px/1.5 var(--mono); color: var(--soft); }
+
+      /* Drawing a repository: what happens, step by step, in the map's square bullets. */
+      .progress[hidden] { display: none; }
+      .progress .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+      .progress .head b { font: 500 16px/1.3 var(--mono); overflow-wrap: anywhere; }
+      .progress .head span { font: 13px/1 var(--mono); color: var(--soft); white-space: nowrap; }
+      .steps { margin: 14px 0 0; padding: 0; list-style: none; }
+      .steps li { position: relative; padding: 4px 0 4px 22px; font-size: 15px; color: var(--soft); }
+      .steps li::before { content: ""; position: absolute; left: 0; top: 11px; width: 9px; height: 9px; border: 1px solid var(--soft); box-sizing: border-box; }
+      .steps li.done { color: var(--ink); }
+      .steps li.done::before { background: var(--ink); border-color: var(--ink); }
+      .steps li.now { color: var(--ink); font-weight: 500; }
+      .steps li.now::before { background: var(--hot); border-color: var(--hot); animation: beat 1s ease-in-out infinite alternate; }
+      .steps li[hidden] { display: none; }
+      .steps small { margin-left: 8px; font: 13px/1 var(--mono); color: var(--soft); font-weight: 400; }
+      @keyframes beat { from { opacity: 1; } to { opacity: 0.25; } }
+      .cancel { margin-top: 12px; font: 600 12px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); background: none; border: 0; padding: 4px 0; cursor: pointer; text-decoration: underline; }
 
       /* The live map */
       .stage { margin: 34px 0 0; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; background: var(--card); box-shadow: 0 30px 60px -30px rgba(18, 22, 27, 0.45); }
@@ -114,7 +151,15 @@
 
       @media (max-width: 860px) {
         body { font-size: 16px; }
-        .hero { padding-top: 26px; }
+        /* No room for the film behind the words: it leads the page as a picture of its own, under the
+           name, with the words after it. */
+        .hero { display: flex; flex-direction: column; padding-bottom: 0; }
+        .hero > .wrap { position: static; order: 1; width: 100%; }
+        .hero > video { position: relative; order: 0; height: auto; aspect-ratio: 5 / 4; object-position: 74% 20%; -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent); mask-image: linear-gradient(180deg, #000 78%, transparent); }
+        .hero > .veil { inset: 0 0 auto; height: 90px; background: linear-gradient(180deg, var(--ground) 20%, rgba(209, 215, 219, 0)); }
+        .hero .top { position: absolute; top: 0; left: 0; right: 0; padding: 18px 24px; }
+        .hero .credit { position: static; order: 2; padding: 8px 24px 0; }
+        h1 { margin-top: 14px; }
         .key { grid-template-columns: 1fr 1fr; }
         .key div:nth-child(3) { border-left: 0; }
         .key div:nth-child(n + 3) { border-top: 1px solid var(--line); }
@@ -125,46 +170,84 @@
       @media (max-width: 480px) {
         .wrap { padding: 0 16px; }
         .top nav { gap: 14px; }
+        .top nav a:first-child { display: none; }
+        .hero .top { padding: 16px; }
         .key { grid-template-columns: 1fr; }
         .key div { border-left: 0; border-top: 1px solid var(--line); }
         .key div:first-child { border-top: 0; }
         .cmd { font-size: 15px; }
+        .way { padding: 14px 14px 16px; }
+        .hero .credit { padding: 8px 16px 0; }
       }
-      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .steps li.now::before { animation: none; } }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <header class="top">
-        <a class="mark" href="./"><img src="assets/logo.svg" alt="" />codecity</a>
-        <nav>
-          <a href="#read">How to read it</a>
-          <a href="https://github.com/icydotdev/codecity">GitHub</a>
-          <a href="https://www.npmjs.com/package/codecity">npm</a>
-        </nav>
-      </header>
+    <div class="hero">
+      <video id="film" muted loop playsinline preload="auto" poster="media/react-today.jpg" aria-hidden="true">
+        <source src="media/react-history.mp4" type="video/mp4" />
+      </video>
+      <div class="veil"></div>
+      <div class="wrap">
+        <header class="top">
+          <a class="mark" href="/"><img src="assets/logo.svg" alt="" />codecity</a>
+          <nav>
+            <a href="#read">How to read it</a>
+            <a href="https://github.com/icydotdev/codecity">GitHub</a>
+            <a href="https://www.npmjs.com/package/codecity">npm</a>
+          </nav>
+        </header>
 
-      <main>
-        <div class="hero">
-          <h1>See your codebase <em>from above</em></h1>
-          <p class="lede">codecity draws any git repository as a 3D map, one building per file. Colour it by what changed, follow what depends on what, and play its history from the first commit. It runs on your machine with one command and keeps up as you work.</p>
-          <div class="run">
-            <div class="cmd"><span id="cmd">npx codecity</span><button type="button" id="copy">Copy</button></div>
-            <a class="ghost" href="demo/react.html">Open the React map</a>
+        <h1>See your codebase <em>from above</em></h1>
+        <p class="lede">codecity draws a git repository as a 3D map, one building per file. Colour it by what changed, follow what depends on what, and play its history from the first commit.</p>
+
+        <div class="ways">
+          <div class="way">
+            <label class="lab" for="repo">A public GitHub repository</label>
+            <form class="draw" id="draw">
+              <input id="repo" name="repo" placeholder="github.com/owner/repository" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+              <button class="go" type="submit">Draw it</button>
+            </form>
+            <p class="problem" id="problem" role="alert" hidden></p>
+            <p class="try">Try <a href="/react/react">react/react</a> <a href="/sveltejs/svelte">sveltejs/svelte</a> <a href="/expressjs/express">expressjs/express</a></p>
+            <div class="progress" id="progress" aria-live="polite" hidden>
+              <div class="head"><b id="which"></b><span id="clock"></span></div>
+              <ol class="steps">
+                <li data-step="wake" hidden>Waking the drawing server <small>it sleeps when nobody is drawing</small></li>
+                <li data-step="line" hidden>Waiting in line <small id="ahead"></small></li>
+                <li data-step="cloning">Cloning the repository</li>
+                <li data-step="drawing">Reading its history and drawing it</li>
+                <li data-step="open">Opening the map</li>
+              </ol>
+              <button class="cancel" type="button" id="cancel">Draw a different one</button>
+            </div>
           </div>
-          <p class="facts">Free and open source. Nothing leaves your machine. Needs git and Node 20 or later.</p>
+          <div class="way">
+            <span class="lab">Your own code, private or not</span>
+            <div class="cmd"><span id="cmd">npx codecity</span><button type="button" id="copy">Copy</button></div>
+            <p class="try">Runs on your machine and keeps up as you work. Nothing leaves it.</p>
+          </div>
+        </div>
+        <p class="facts">Free and open source. The command needs git and Node 20 or later.</p>
+      </div>
+      <p class="credit">Behind this: the React repository, from its first commit to today.</p>
+    </div>
 
+    <div class="wrap">
+      <main>
+        <section id="explore">
+          <h2>Explore one</h2>
           <div class="stage">
             <div class="bar">
               <span><b>react/react</b>, drawn by codecity. Click the map, then drag to move, scroll to zoom, click a building.</span>
               <a href="demo/react.html">Open full screen</a>
             </div>
             <div class="view" id="view">
-              <img class="still" src="assets/screenshot-changed.jpg" alt="A repository of 6,000 files drawn as a city, with recently changed files in red" />
+              <img class="still" src="media/react-today.jpg" alt="The React repository drawn as a city, with recently changed files in red" />
               <div class="open"><a href="demo/react.html">Open the live React map</a></div>
             </div>
           </div>
-        </div>
+        </section>
 
         <section id="read">
           <h2>How to read it</h2>
@@ -263,6 +346,97 @@ npx codecity -o map.html</pre>
     </footer>
 
     <script>
+      // The film plays once the page has loaded, and not at all for anyone who has asked for less motion.
+      const film = document.getElementById("film");
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) addEventListener("load", () => film.play().catch(() => {}));
+
+      // ------------------------------------------------ drawing a public repository
+      // The drawing is done by a small server behind this site (/api/maps/<owner>/<repo>). It sleeps
+      // when idle, so the first request after a quiet spell can take a minute to answer at all.
+      const $ = (id) => document.getElementById(id);
+      const NAME = /^[A-Za-z0-9_.-]{1,100}$/;
+      /** "github.com/a/b", "https://github.com/a/b.git", "a/b", "git@github.com:a/b" → "a/b". */
+      function readAddress(text) {
+        const m = /^(?:(?:https?:\/\/)?(?:www\.)?github\.com[/:]|git@github\.com:)?([^/\s]+)\/([^/\s#?]+)/i.exec(text.trim());
+        const owner = m?.[1];
+        const name = m?.[2].replace(/\.git$/, "");
+        return m && NAME.test(owner) && NAME.test(name) ? `${owner}/${name}` : null;
+      }
+      let run = 0; // each drawing asked for; a newer one ends the older one's polling
+      function say(problem) {
+        $("problem").textContent = problem ?? "";
+        $("problem").hidden = !problem;
+      }
+      function mark(step, note) {
+        const order = ["wake", "line", "cloning", "drawing", "open"];
+        const at = order.indexOf(step);
+        for (const li of document.querySelectorAll(".steps li")) {
+          const i = order.indexOf(li.dataset.step);
+          li.className = i < at ? "done" : i === at ? "now" : "";
+          if (li.dataset.step === step) li.hidden = false;
+        }
+        if (note !== undefined) $("ahead").textContent = note;
+      }
+      function idle() {
+        run++;
+        $("draw").hidden = false;
+        document.querySelector(".way .try").hidden = false;
+        $("progress").hidden = true;
+        history.replaceState(null, "", "/");
+      }
+      async function draw(full) {
+        const mine = ++run;
+        say(null);
+        $("repo").value = full;
+        $("draw").hidden = true;
+        document.querySelector(".way .try").hidden = true;
+        $("progress").hidden = false;
+        for (const li of document.querySelectorAll(".steps li")) (li.className = ""), (li.hidden = ["wake", "line"].includes(li.dataset.step));
+        $("which").textContent = full;
+        history.replaceState(null, "", `/?repo=${full}`);
+        const started = Date.now();
+        const tick = setInterval(() => (mine === run ? ($("clock").textContent = `${Math.round((Date.now() - started) / 1000)} s`) : clearInterval(tick)), 500);
+        while (mine === run) {
+          // No answer within a few seconds: the server is waking up.
+          const slow = setTimeout(() => mine === run && mark("wake"), 3500);
+          let answer = null;
+          try {
+            const response = await fetch(`/api/maps/${full}`, { cache: "no-store" });
+            if ((response.headers.get("content-type") ?? "").includes("json")) answer = await response.json();
+          } catch {}
+          clearTimeout(slow);
+          if (mine !== run) return;
+          if (!answer) mark("wake"); // the host's own page while it wakes, or a timeout: ask again
+          else if (answer.state === "ready") {
+            mark("open");
+            location.href = `/${full}`;
+            return;
+          } else if (answer.state === "moved") {
+            full = answer.full;
+            $("which").textContent = full;
+            history.replaceState(null, "", `/?repo=${full}`);
+            continue;
+          } else if (answer.state === "waiting") mark("line", answer.ahead === 1 ? "1 ahead" : `${answer.ahead} ahead`);
+          else if (answer.state === "drawing") mark(answer.stage);
+          else {
+            idle();
+            $("repo").value = full;
+            say(answer.message ?? "That could not be drawn.");
+            return;
+          }
+          await new Promise((done) => setTimeout(done, 2000));
+        }
+      }
+      $("draw").onsubmit = (e) => {
+        e.preventDefault();
+        const full = readAddress($("repo").value);
+        full ? draw(full) : say("That is not the address of a GitHub repository. It looks like github.com/owner/repository.");
+      };
+      $("cancel").onclick = () => (idle(), $("repo").focus());
+      // Arriving from a map that was not drawn yet (/<owner>/<repo> sends people here), or a shared link.
+      const asked = readAddress(new URLSearchParams(location.search).get("repo") ?? "");
+      if (asked) draw(asked);
+
       // The command, copied.
       const copy = document.getElementById("copy");
       copy.onclick = async () => {

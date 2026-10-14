@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build && node site/build.mjs",
+  "outputDirectory": "_site",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://codecity-wrrj.onrender.com/api/:path*" },
+    { "source": "/:owner/:repo/:rest*", "destination": "https://codecity-wrrj.onrender.com/:owner/:repo/:rest*" }
+  ]
+}
