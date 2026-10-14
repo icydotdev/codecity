@@ -1,6 +1,6 @@
 {
   "name": "codecity",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "A map of your codebase, one building per file: what changed since you last looked, where your coding agents are working, and which files everything else depends on.",
   "type": "module",
   "bin": {
