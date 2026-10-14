@@ -149,6 +149,7 @@
       pre i { font-style: normal; color: #7f8b99; }
       .langs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
       .langs li { font: 500 12px/1 var(--mono); padding: 7px 9px; border: 1px solid var(--line); border-radius: 2px; background: var(--card); }
+      .langs li::before { content: none; } /* tags, not the feature list's square bullets */
 
       footer { margin-top: 84px; padding: 26px 0 40px; border-top: 1px solid var(--ink); font: 13px/1.7 var(--mono); color: var(--soft); }
       footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 30px; }
