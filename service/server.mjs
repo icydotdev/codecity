@@ -299,7 +299,7 @@ function waitingPage(full) {
     `<h1><a href="/">codecity</a></h1>
 <p class="lead">Drawing ${esc(full)}.</p>
 <div class="bar" aria-hidden="true"><i></i></div>
-<p>${where} Most repositories take under a minute. This page opens the map when it is ready, and the link stays the same: <code>/${esc(full)}</code>.</p>`,
+<p>${where} Small repositories take seconds, big ones a few minutes. This page opens the map when it is ready, and the link stays the same: <code>/${esc(full)}</code>.</p>`,
     { refresh: 4 },
   );
 }
