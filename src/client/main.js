@@ -443,6 +443,56 @@ const fileAt = (e) => {
 };
 const flyTo = (f) => Object.assign(goal, { x: f.cx, z: f.cz, span: Math.min(goal.span, Math.max(14, f.tall * 1.6, Math.max(f.fw, f.fd) * 6)) });
 
+// ------------------------------------------------------------------ the view, in the address
+// What you are looking at is kept after the # in the address (#lens=age&file=src/a.ts&view=...),
+// so that the address is a link to it. Only what reads the same for anyone: not "since your last visit".
+const short = (n) => Math.round(n * 100) / 100;
+function viewOf() {
+  const p = new URLSearchParams();
+  if (lens !== LENSES[1]) p.set("lens", lens.id);
+  if (lens === LENSES[1] && windowId !== "auto" && windowId !== "visit") p.set("span", windowId);
+  if (tallBy !== "lines") p.set("height", tallBy);
+  if (chosen !== "auto") p.set("theme", chosen);
+  if (picked) p.set("file", picked.path);
+  if (clock !== null) p.set("at", String(clock));
+  p.set("view", [goal.x, goal.z, goal.turn, goal.span].map(short).join(","));
+  return p.toString();
+}
+let keeping = null;
+/** Write the view into the address, a moment after it stops changing (or at once, `after` 0). */
+function keepView(after = 400) {
+  clearTimeout(keeping);
+  const write = () => {
+    try {
+      history.replaceState(null, "", `#${viewOf()}`);
+    } catch {
+      /* a page that cannot change its address */
+    }
+  };
+  if (after) keeping = setTimeout(write, after);
+  else write();
+}
+function openView(hash) {
+  const p = new URLSearchParams(hash.replace(/^#/, ""));
+  if (![...p.keys()].length) return;
+  lens = LENSES.find((l) => l.id === p.get("lens")) ?? lens;
+  if (WINDOWS.some((w) => w.id === p.get("span") && w.id !== "visit")) windowId = p.get("span");
+  if (HEIGHTS[p.get("height")]) measure(p.get("height"));
+  if (THEMES.some(([id]) => id === p.get("theme"))) land(p.get("theme"));
+  const v = (p.get("view") ?? "").split(",").map(Number);
+  if (v.length === 4 && v.every(Number.isFinite)) Object.assign(goal, { x: v[0], z: v[1], turn: v[2], span: Math.max(2, v[3]) }), Object.assign(view, goal), aim();
+  const f = p.has("file") ? files.find((file) => file.path === p.get("file")) : null;
+  if (f) show(f);
+  const at = Number(p.get("at"));
+  if (p.has("at") && Number.isFinite(at) && moments.length > 1) {
+    enterHistory();
+    play(false);
+    const nearest = moments.reduce((best, m, i) => (Math.abs(m - at) < Math.abs(moments[best] - at) ? i : best), 0);
+    setClock(nearest);
+  }
+  paint();
+}
+
 // ------------------------------------------------------------------ lenses
 const lastSeenKey = () => `codecity:${D.root}:seen`;
 let lastSeen = null;
@@ -597,6 +647,7 @@ function tint() {
   wake();
 }
 function paint() {
+  keepView();
   tint();
   const found = wanted ? `<h2>Found</h2><p>${count(wanted.size, "file")} matching.</p>` : "";
   const era = clock === null ? "" : `<h2>History</h2><p>${count(files.filter((f) => f.birth <= clock).length, "building")} of ${files.length.toLocaleString()} standing.</p><ul><li><i style="background:${css(C.fresh)}"></i><span>just built</span></li><li><i style="background:${css(C.hot)}"></i><span>just changed</span></li></ul>${D.quick ? "<p>This history is too long to measure, so buildings appear at the size they are today.</p>" : ""}`;
@@ -1096,6 +1147,36 @@ addEventListener("keydown", (e) => {
 
 // ------------------------------------------------------------------ go
 mount(JSON.parse($("data").textContent), false);
+// A link to a view opens that view; a saved copy opens on the view it was saved from.
+openView(location.hash.length > 1 ? location.hash : D.view ? `#${D.view}` : "");
+
+// ------------------------------------------------------------------ sharing
+// Share, where the page has an address someone else can open: it copies a link to exactly this view
+// (or, on a phone, opens the phone's own share sheet). Save a copy, while live: this map as one file.
+const shareable = /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+$("share").hidden = !shareable;
+$("keep").hidden = !D.live;
+$("acts").hidden = !(shareable || D.live);
+$("share").onclick = async () => {
+  keepView(0);
+  const said = (text) => (($("share").textContent = text), setTimeout(() => ($("share").textContent = "Share"), 1800));
+  if (navigator.share && matchMedia("(pointer: coarse)").matches) {
+    try {
+      await navigator.share({ title: `${D.name} · codecity`, url: location.href });
+    } catch {
+      /* the sheet was closed */
+    }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(location.href);
+    said("Link copied");
+  } catch {
+    said("Copy the address");
+  }
+};
+// The copy is made by the codecity command, from the town as it is now, without the live feed.
+$("keep").onclick = () => ($("keep").href = `copy?view=${encodeURIComponent(viewOf())}`);
 resize();
 
 // Under a watcher: listen for the next town.
@@ -1133,6 +1214,7 @@ if (D.live) {
 
 let last = performance.now();
 let wasGrowing = false;
+let wasMoving = false;
 renderer.setAnimationLoop((t) => {
   const seconds = Math.min(0.1, (t - last) / 1000);
   const ease = 1 - Math.exp(-(seconds * 1000) / 110);
@@ -1143,6 +1225,8 @@ renderer.setAnimationLoop((t) => {
     if (Math.abs(gap) > 1e-4) (view[key] += gap * ease), (moving = true);
   }
   if (moving) aim();
+  else if (wasMoving) keepView(); // the camera has come to rest
+  wasMoving = moving;
 
   if (playing) {
     const place = playhead + (seconds * moments.length) / PLAY_FOR;

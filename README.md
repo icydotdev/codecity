@@ -172,6 +172,13 @@ codecity [folder] [options]
 
 With `-o` or `--once`, the output is one self-contained HTML file. It works offline and can be opened from disk, attached to a pull request or sent to a colleague.
 
+### Sharing a view
+
+The address of a map keeps what you are looking at: the colour, the selected file, the theme, the moment in the timeline and where the camera is. A link to it opens exactly that view.
+
+- **Share** appears on maps with a web address, such as those at codecity.icy.dev. It copies the link to the current view, or opens the share sheet on a phone.
+- **Save a copy** appears in live mode. It downloads the map as it is now, as one self-contained file that opens on the same view.
+
 ### Keyboard and mouse
 
 | Input | Action |

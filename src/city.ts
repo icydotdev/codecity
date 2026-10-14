@@ -21,6 +21,8 @@ export interface City {
   land: Land | null;
   /** True when the page is being served by a watcher and should listen for changes. */
   live: boolean;
+  /** The view to open on (what a page keeps after # in its address), for a copy saved from a live map. */
+  view?: string;
   /** A web address the files are linked to (`<link>/<path>`), instead of opening them in VS Code. */
   link: string | null;
   /** True when the history was too long to measure, so the timelapse cannot show buildings growing. */

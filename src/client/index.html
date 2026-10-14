@@ -113,7 +113,9 @@
       #card .hops .hop { font: 12px/1.25 var(--mono); letter-spacing: 0; text-transform: none; padding: 4px 6px; border-color: var(--line); max-width: 100%; text-align: left; overflow-wrap: anywhere; }
       #card .hops .hop:hover { border-color: var(--ink); }
       #card .hops span { color: var(--soft); font-size: 11px; }
-      #card a, #card button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; }
+      #acts { pointer-events: auto; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      #acts [hidden], #acts[hidden] { display: none; }
+      #acts button, #acts a, #card a, #card button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; }
       #card a { background: var(--ink); color: var(--paper); }
 
       /* The timeline is a thing to start, not a setting: a solid button by itself, bottom left. */
@@ -182,6 +184,7 @@
       <h1 id="name"></h1>
       <div class="sub"><span id="sub"></span></div>
       <button id="news" type="button"></button>
+      <div id="acts" hidden><button type="button" id="share" hidden>Share</button><a id="keep" href="copy" download hidden>Save a copy</a></div>
     </header>
     <div id="tools">
       <input id="search" type="search" placeholder="Find a file  ( / )" autocomplete="off" spellcheck="false" aria-label="Find a file" />

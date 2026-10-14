@@ -82,6 +82,15 @@ export function watchCity(dir: string, options: { port: number; land: Land | nul
     if (url === "/") {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
       response.end(page(city));
+    } else if (url === "/copy") {
+      // Save a copy: this town as it is now, as one file that needs nothing running, opening on the view it was saved from.
+      const view = new URL(request.url ?? "/", "http://localhost").searchParams.get("view")?.slice(0, 2000) ?? undefined;
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "content-disposition": `attachment; filename="${city!.name.replace(/[^\w.-]+/g, "-")}-codecity.html"`,
+        "cache-control": "no-store",
+      });
+      response.end(page({ ...city!, live: false, view }));
     } else if (url === "/events") {
       response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
       response.write("retry: 2000\n\n");
