@@ -856,7 +856,9 @@ function mount(data, animate) {
     // The town is drawn about its middle, so when it grows every building shifts a little. Slide; do not jump.
     f.dx = was ? was.cx + was.dx - f.cx : 0;
     f.dz = was ? was.cz + was.dz - f.cz : 0;
-    f.pulse = animate && (!was || was.stamp !== f.stamp || was.dirty !== f.dirty) ? 1 : 0;
+    // A building that changed glows; one still glowing from an earlier change keeps glowing, so that
+    // when saves come quickly (an agent at work) each one is seen and not cut short by the next.
+    f.pulse = animate && (!was || was.stamp !== f.stamp || was.dirty !== f.dirty) ? 1 : (was?.pulse ?? 0);
     for (let ix = Math.floor((f.x - 0.5) / CELL); ix <= Math.floor((f.x + f.w + 0.5) / CELL); ix++)
       for (let iz = Math.floor((f.y - 0.5) / CELL); iz <= Math.floor((f.y + f.h + 0.5) / CELL); iz++) {
         const key = `${ix},${iz}`;
