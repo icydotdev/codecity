@@ -97,6 +97,8 @@ const ext = (p) => {
   const i = name.lastIndexOf(".");
   return i <= 0 ? "(none)" : name.slice(i);
 };
+/** Where a file opens: on the web when the map was made to be published (`--link`), otherwise in VS Code. */
+const source = (f) => (D.link ? `${D.link}/${f.path.split("/").map(encodeURIComponent).join("/")}` : `vscode://file/${encodeURI(D.root + "/" + f.path)}`);
 const authorName = (f) => (f.author < 0 ? "(not committed)" : D.authors[f.author]);
 const css = (color) => "#" + color.getHexString();
 
@@ -951,7 +953,7 @@ function show(f) {
     <dt>Changed</dt><dd>${count(f.commits, "time")}</dd>
     <dt>Mostly by</dt><dd>${esc(authorName(f))}</dd></dl>
     ${hops("Imports", f.uses, "var(--accent)")}${hops("Imported by", f.usedBy, "#9b4dff")}
-    <div class="acts"><a href="vscode://file/${encodeURI(D.root + "/" + f.path)}">Open in VS Code</a><button type="button" id="copy">Copy path</button></div>`;
+    <div class="acts"><a href="${esc(source(f))}"${D.link ? ' target="_blank" rel="noopener"' : ""}>${D.link ? "View source" : "Open in VS Code"}</a><button type="button" id="copy">Copy path</button></div>`;
   $("copy").onclick = () => navigator.clipboard?.writeText(f.path).then(() => ($("copy").textContent = "Copied"));
   for (const hop of card.querySelectorAll(".hop")) hop.onclick = () => (show(files[Number(hop.dataset.i)]), flyTo(picked));
 }
@@ -1027,7 +1029,8 @@ $("gear").onclick = () => $("gear").setAttribute("aria-expanded", String(documen
 canvas.addEventListener("pointerdown", () => (document.body.classList.remove("open"), $("gear").setAttribute("aria-expanded", "false")));
 canvas.addEventListener("dblclick", (e) => {
   const f = fileAt(e);
-  if (f) location.href = `vscode://file/${encodeURI(D.root + "/" + f.path)}`;
+  if (f && D.link) open(source(f), "_blank", "noopener");
+  else if (f) location.href = source(f);
 });
 canvas.addEventListener("pointerleave", () => ((tip.style.display = "none"), stand(hoverPlate, null)));
 canvas.addEventListener(

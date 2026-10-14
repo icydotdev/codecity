@@ -159,6 +159,9 @@ codecity [folder] [options]
   --once            The same, to a temporary folder
   --port <number>   Port to serve the live map on (default: 3737)
   --theme <name>    Theme: auto, light, dark, beach (default: auto)
+  --link <url>      Link each file to <url>/<path> instead of opening it
+                    in VS Code, for maps you publish. For a GitHub
+                    repository: https://github.com/<owner>/<repo>/blob/main
   --no-browser      Don't open the browser automatically
   -h, --help        Show this help message
 ```

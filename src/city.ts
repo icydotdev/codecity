@@ -21,6 +21,8 @@ export interface City {
   land: Land | null;
   /** True when the page is being served by a watcher and should listen for changes. */
   live: boolean;
+  /** A web address the files are linked to (`<link>/<path>`), instead of opening them in VS Code. */
+  link: string | null;
   /** True when the history was too long to measure, so the timelapse cannot show buildings growing. */
   quick: boolean;
   /** The last pull: when it was, and the buildings it changed, as places in `files`. */
@@ -34,7 +36,7 @@ export interface City {
 
 const round = (n: number) => Math.round(n * 1000) / 1000;
 
-export function buildCity(dir: string, options: { land?: Land | null; live?: boolean } = {}, before?: Memory): { city: City; memory: Memory } {
+export function buildCity(dir: string, options: { land?: Land | null; live?: boolean; link?: string | null } = {}, before?: Memory): { city: City; memory: Memory } {
   const { repo, memory } = collect(dir, before);
   const plan = layout(repo.files);
   const placeOf = new Map(plan.plots.map((plot, i) => [plot.file.path, i]));
@@ -47,6 +49,7 @@ export function buildCity(dir: string, options: { land?: Land | null; live?: boo
     authors: repo.authors,
     land: options.land ?? null,
     live: options.live ?? false,
+    link: options.link?.replace(/\/+$/, "") || null,
     quick: repo.quick,
     pull: repo.pull && {
       at: repo.pull.at,

@@ -22,6 +22,9 @@ if (args.includes("--help") || args.includes("-h")) {
     --once            The same, to a temporary folder
     --port <number>   Port to serve the live map on (default: 3737)
     --theme <name>    Theme: ${LANDS.join(", ")} (default: auto)
+    --link <url>      Link each file to <url>/<path> instead of opening it
+                      in VS Code, for maps you publish. For a GitHub
+                      repository: https://github.com/<owner>/<repo>/blob/main
     --no-browser      Don't open the browser automatically
     -h, --help        Show this help message
 `);
@@ -52,6 +55,7 @@ const out = take("-o", "--out");
 // "plain" was the name of the theme that is now light or dark, whichever the machine is set to.
 const wanted = ((name) => (name === "plain" ? "auto" : name))(take("--land", "--theme"));
 const port = Number(take("--port") ?? 3737);
+const link = take("--link");
 // Watching used to be asked for. It is what happens now, so the flag is accepted and does nothing.
 has("-w", "--watch");
 const once = has("--once", "--no-watch");
@@ -60,6 +64,7 @@ const noBrowser = has("--no-browser", "--no-open");
 const unknown = args.find((arg) => arg.startsWith("-"));
 if (unknown) fail(`Unknown option ${unknown}. Try codecity --help`);
 if (wanted && !(LANDS as readonly string[]).includes(wanted)) fail(`Unknown theme "${wanted}". Available: ${LANDS.join(", ")}.`);
+if (link !== null && !/^https?:\/\/\S+$/.test(link)) fail("--link needs a web address that starts with http:// or https://.");
 if (!Number.isInteger(port) || port < 1 || port > 65535) fail("--port needs a number between 1 and 65535.");
 const land = wanted as Land | null;
 const dir = path.resolve(args[0] ?? ".");
@@ -87,7 +92,7 @@ if (watching) {
   }
 } else {
   try {
-    const { city } = buildCity(dir, { land });
+    const { city } = buildCity(dir, { land, link });
     if (!city.files.length) fail("Git knows of no files here yet.");
     const target = path.resolve(out ?? path.join(os.tmpdir(), "codecity", `${city.name}.html`));
     mkdirSync(path.dirname(target), { recursive: true });

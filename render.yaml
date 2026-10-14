@@ -1,0 +1,24 @@
+# codecity on the web (service/). One Starter instance and no autoscaling, so the price is fixed.
+services:
+  - type: web
+    name: codecity
+    runtime: docker
+    plan: starter
+    numInstances: 1
+    dockerfilePath: ./service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    # Every deploy starts with no maps drawn, so deploy only for changes that affect the maps.
+    buildFilter:
+      paths:
+        - src/**
+        - service/**
+        - package.json
+        - package-lock.json
+        - vite.config.ts
+        - tsconfig*.json
+    envVars:
+      # Optional. Any GitHub token, with no permissions at all, lifts GitHub's limit on lookups
+      # from 60 to 5,000 an hour.
+      - key: GITHUB_TOKEN
+        sync: false
