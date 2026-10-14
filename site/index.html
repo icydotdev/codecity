@@ -446,7 +446,7 @@ npx codecity -o map.html</pre>
             $("which").textContent = full;
             history.replaceState(null, "", `/?repo=${full}`);
             continue;
-          } else if (answer.state === "waiting") mark("line", answer.ahead === 1 ? "1 ahead" : `${answer.ahead} ahead`);
+          } else if (answer.state === "waiting") mark("line", `${answer.ahead} ahead${answer.minutes ? ` · about ${answer.minutes} min` : ""}`);
           else if (answer.state === "drawing") {
             const shown = SHOWN[answer.step] ?? "clone";
             const note = shown === "clone" ? `${SAYS[answer.step] ?? ""}${answer.step !== "packing" && answer.stepPercent ? ` ${answer.stepPercent}%` : ""}` : shown === "files" ? (answer.detail ?? "") : "";

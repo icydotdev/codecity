@@ -15,6 +15,7 @@
 
 import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
@@ -29,10 +30,13 @@ const LIMIT = {
   depth: number("HISTORY_DEPTH", 3000),
   cloneSeconds: number("CLONE_SECONDS", 120),
   drawSeconds: number("DRAW_SECONDS", 120),
-  /** Memory for the drawing process. With git beside it, this keeps a 512 MB box standing. */
-  drawMB: number("DRAW_MB", 360),
+  /** Memory for drawing a big repository, and for a small one beside it: together, with git, under 512 MB. */
+  drawMB: number("DRAW_MB", 300),
+  smallDrawMB: number("SMALL_DRAW_MB", 128),
+  /** A repository this size or under (GitHub's figure) is small: it need not wait behind a big one. */
+  smallMB: number("SMALL_REPO_MB", 60),
   /** Repositories waiting to be drawn. More than this and people are asked to come back later. */
-  queue: number("MAX_QUEUE", 10),
+  queue: number("MAX_QUEUE", 50),
   /** New maps one visitor may ask for in an hour. Maps already drawn are not counted. */
   perHour: number("MAPS_PER_VISITOR_PER_HOUR", 5),
   cacheMB: number("CACHE_MB", 500),
@@ -123,20 +127,19 @@ const GIT_STEPS = [
   [/^Resolving deltas:\s+(\d+)%/, "unpacking"],
   [/^Updating files:\s+(\d+)%/, "checkout"],
 ];
-function hear(line) {
-  if (!drawing) return;
+function hear(job, line) {
   for (const [pattern, step] of GIT_STEPS) {
     const m = pattern.exec(line);
-    if (m) return move(step, Number(m[1]));
+    if (m) return move(job, step, Number(m[1]));
   }
   const m = /^progress (\w+) (\d+) (\d+)$/.exec(line);
-  if (m) move(m[1] === "imports" ? "layout" : m[1], Number(m[3]) ? (100 * Number(m[2])) / Number(m[3]) : 0, m[1] === "files" ? `${Number(m[2]).toLocaleString("en")} of ${Number(m[3]).toLocaleString("en")}` : undefined);
+  if (m) move(job, m[1] === "imports" ? "layout" : m[1], Number(m[3]) ? (100 * Number(m[2])) / Number(m[3]) : 0, m[1] === "files" ? `${Number(m[2]).toLocaleString("en")} of ${Number(m[3]).toLocaleString("en")}` : undefined);
 }
-function move(step, percent, detail) {
+function move(job, step, percent, detail) {
   const at = STEPS.findIndex((s) => s.id === step);
-  if (at < 0 || at < drawing.at) return; // never backwards
-  if (at > drawing.at) (drawing.entered = Date.now()), console.log(`${drawing.repo.full}: ${step} after ${((Date.now() - drawing.started) / 1000).toFixed(1)}s`);
-  Object.assign(drawing, { at, step, percent, detail });
+  if (at < 0 || at < job.at) return; // never backwards
+  if (at > job.at) (job.entered = Date.now()), console.log(`${job.repo.full}: ${step} after ${((Date.now() - job.started) / 1000).toFixed(1)}s`);
+  Object.assign(job, { at, step, percent, detail });
 }
 /** How far along the drawing is, 0 to 100, and the step it is on. */
 function along(job) {
@@ -147,14 +150,40 @@ function along(job) {
 }
 
 // ------------------------------------------------------------------ drawing
-/** Repositories waiting, in order, and the one being drawn. */
+// Two lanes. The first draws any repository, one at a time. The second draws only small ones, so a
+// small repository never waits behind a big one; a big one takes minutes, a small one seconds.
+// No more than that at once: on a fraction of a CPU, two big drawings would each take twice as
+// long, and together they would not fit in the memory.
+const LANES = [
+  { fits: () => true, heapMB: LIMIT.drawMB },
+  { fits: (repo) => repo.mb <= LIMIT.smallMB, heapMB: LIMIT.smallDrawMB },
+];
+/** Repositories waiting, in order, and the one each lane is drawing. */
 const waiting = [];
-let drawing = null;
+const lanes = LANES.map(() => null);
 /** Recent failures, so a repository that cannot be drawn is not tried again on every refresh. */
 const failures = new Map();
 
-const placeInLine = (key) => (drawing?.key === key ? 0 : waiting.findIndex((job) => job.key === key) + 1);
-const inLine = (key) => drawing?.key === key || waiting.some((job) => job.key === key);
+const drawingOf = (key) => lanes.find((job) => job?.key === key);
+const inLine = (key) => Boolean(drawingOf(key)) || waiting.some((job) => job.key === key);
+/** Roughly how long a repository takes to draw on the free instance, in seconds. */
+const guess = (repo) => 20 + 0.12 * Math.min(repo.mb, 1200);
+/** Where a waiting repository stands: how many are ahead of it, and about how long until it is drawn. */
+function standing(key) {
+  const i = waiting.findIndex((job) => job.key === key);
+  const job = waiting[i];
+  const small = LANES[1].fits(job.repo);
+  // A small one waits only for the small ones ahead of it, behind whichever lane frees first.
+  const ahead = waiting.slice(0, i).filter((other) => !small || LANES[1].fits(other.repo));
+  const left = (j) => (j ? guess(j.repo) * (1 - along(j).percent / 100) : 0);
+  const free = small ? Math.min(left(lanes[0]), left(lanes[1])) : left(lanes[0]);
+  const seconds = free + ahead.reduce((sum, other) => sum + guess(other.repo), 0) / (small ? 2 : 1) + guess(job.repo);
+  return { state: "waiting", ahead: ahead.length + lanes.filter(Boolean).length, minutes: Math.max(1, Math.round(seconds / 60)) };
+}
+const where = (key) => {
+  const job = drawingOf(key);
+  return job ? { state: "drawing", stage: job.stage, since: job.started, ...along(job) } : standing(key);
+};
 
 /** Add a repository to the queue. False when the queue is full. */
 function ask(repo) {
@@ -166,21 +195,28 @@ function ask(repo) {
   return true;
 }
 
-async function next() {
-  if (drawing || !waiting.length) return;
-  drawing = { ...waiting.shift(), stage: "cloning", started: Date.now(), entered: Date.now(), at: 0, step: "packing", percent: 0 };
-  const { key, repo, started } = drawing;
-  try {
-    await draw(repo);
-    failures.delete(key);
-    console.log(`drew ${repo.full} in ${((Date.now() - started) / 1000).toFixed(1)}s`);
-  } catch (error) {
-    failures.set(key, { at: Date.now(), why: error.why ?? "It could not be drawn." });
-    console.log(`failed ${repo.full}: ${error.message.split("\n")[0]}`);
-  } finally {
-    drawing = null;
-    next();
-  }
+/** Start whatever can start: each free lane takes the first waiting repository it fits. */
+function next() {
+  lanes.forEach((busy, lane) => {
+    if (busy) return;
+    const i = waiting.findIndex((job) => LANES[lane].fits(job.repo));
+    if (i < 0) return;
+    const job = Object.assign(waiting.splice(i, 1)[0], { stage: "cloning", started: Date.now(), entered: Date.now(), at: 0, step: "packing", percent: 0 });
+    lanes[lane] = job;
+    draw(job, LANES[lane].heapMB)
+      .then(() => {
+        failures.delete(job.key);
+        console.log(`drew ${job.repo.full} in ${((Date.now() - job.started) / 1000).toFixed(1)}s (lane ${lane})`);
+      })
+      .catch((error) => {
+        failures.set(job.key, { at: Date.now(), why: error.why ?? "It could not be drawn." });
+        console.log(`failed ${job.repo.full}: ${error.message.split("\n")[0].slice(0, 300)}`);
+      })
+      .finally(() => {
+        lanes[lane] = null;
+        next();
+      });
+  });
 }
 
 /**
@@ -190,6 +226,8 @@ async function next() {
 function run(command, args, seconds, why, heard = () => {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, GIT_TERMINAL_PROMPT: "0", CODECITY_PROGRESS: "1" } });
+    // If memory runs out, Linux is to stop this and not the server (and so everyone's queue).
+    writeFile(`/proc/${child.pid}/oom_score_adj`, "1000").catch(() => {});
     let out = "";
     let err = "";
     child.stdout.on("data", (chunk) => (out += chunk));
@@ -213,7 +251,8 @@ function run(command, args, seconds, why, heard = () => {}) {
   });
 }
 
-async function draw({ full, branch }) {
+async function draw(job, heapMB) {
+  const { full, branch } = job.repo;
   const key = keyOf(full);
   const name = full.split("/")[1];
   // The same folder every time: the map remembers your last visit by where the repository was.
@@ -227,17 +266,18 @@ async function draw({ full, branch }) {
       ["-c", "pack.threads=1", "clone", "--progress", "--single-branch", "--no-tags", "--branch", branch, "--depth", String(LIMIT.depth), `https://github.com/${full}.git`, dir],
       LIMIT.cloneSeconds,
       "clone",
-      hear,
+      (line) => hear(job, line),
     );
     const head = (await run("git", ["-C", dir, "rev-parse", "HEAD"], 10, "read")).trim();
-    if (drawing) (drawing.stage = "drawing"), move("history", 0);
+    job.stage = "drawing";
+    move(job, "history", 0);
     const out = path.join(place, "map.html");
     await run(
       process.execPath,
-      [`--max-old-space-size=${LIMIT.drawMB}`, CLI, dir, "-o", out, "--no-browser", "--link", `https://github.com/${full}/blob/${head}`],
+      [`--max-old-space-size=${heapMB}`, CLI, dir, "-o", out, "--no-browser", "--link", `https://github.com/${full}/blob/${head}`],
       LIMIT.drawSeconds,
       "draw",
-      hear,
+      (line) => hear(job, line),
     );
     const html = (await fs.readFile(out, "utf8")).replace("</header>", () => BACK + "</header>");
     const zipped = zlib.gzipSync(html, { level: 9 });
@@ -320,7 +360,7 @@ async function status(req, owner, name) {
     if (ago(stat.mtimeMs) > LIMIT.freshHours * HOUR && !inLine(key)) lookUp(owner, name).then((repo) => repo.full && ask(repo));
     return { state: "ready" };
   }
-  if (inLine(key)) return drawing?.key === key ? { state: "drawing", stage: drawing.stage, since: drawing.started, ...along(drawing) } : { state: "waiting", ahead: placeInLine(key) - (drawing ? 0 : 1) };
+  if (inLine(key)) return where(key);
   const failed = failures.get(key);
   if (failed && ago(failed.at) < 10 * 60_000) return { state: "error", reason: "failed", message: failed.why };
 
@@ -334,7 +374,7 @@ async function status(req, owner, name) {
   if (waiting.length >= LIMIT.queue) return { state: "error", reason: "busy", message: "Too many repositories are waiting to be drawn. Try again in a few minutes." };
   if (!allowed(visitorOf(req))) return { state: "error", reason: "limit", message: `Each visitor can ask for ${LIMIT.perHour} new maps an hour. Maps already drawn open any time.` };
   ask(repo);
-  return drawing?.key === key ? { state: "drawing", stage: drawing.stage, since: drawing.started, ...along(drawing) } : { state: "waiting", ahead: placeInLine(key) - (drawing ? 0 : 1) };
+  return where(key);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -344,7 +384,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method !== "GET" && req.method !== "HEAD") return json(req, res, 405, { error: "GET only" });
     const url = new URL(req.url ?? "/", "http://localhost");
-    if (url.pathname === "/healthz") return json(req, res, 200, { ok: true, drawing: drawing?.repo.full ?? null, waiting: waiting.length, bandwidthGB: +(usage.bytes / 1e9).toFixed(3) });
+    if (url.pathname === "/healthz") return json(req, res, 200, { ok: true, drawing: lanes.map((job) => job?.repo.full ?? null), waiting: waiting.length, bandwidthGB: +(usage.bytes / 1e9).toFixed(3) });
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
     const api = parts[0] === "api" && parts[1] === "maps";
     const [owner, rawName, ...rest] = api ? parts.slice(2) : parts;
