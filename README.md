@@ -54,6 +54,10 @@ codecity
 
 Requires Node.js 20 or later and git.
 
+### Any public repository, in the browser
+
+To look at a public GitHub repository without cloning it, paste its address at [codecity.icy.dev](https://codecity.icy.dev/), or go straight to `codecity.icy.dev/<owner>/<repository>`, for example [codecity.icy.dev/react/react](https://codecity.icy.dev/react/react). The map is drawn on a server from the last 3,000 commits and kept for a day, so the link can be shared. Files open on GitHub.
+
 ## What It Shows
 
 ### A stable layout
