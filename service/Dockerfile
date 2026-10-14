@@ -7,5 +7,4 @@ RUN npm ci
 COPY . .
 RUN npm run build && npm prune --omit=dev
 ENV NODE_ENV=production
-USER node
-CMD ["node", "service/server.mjs"]
+CMD ["sh", "service/start.sh"]

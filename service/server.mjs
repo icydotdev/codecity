@@ -5,6 +5,10 @@
 // a queue of ten, a size limit, time limits on each step and a few new maps per visitor per
 // hour. When it is busy, people are told so; the bill stays the same.
 //
+// The one thing a host charges for by use is bandwidth, so that has a monthly budget too. It is
+// counted in bytes actually sent and kept on disk, and once it is spent, maps are not served
+// again until the next month.
+//
 // No dependencies beyond Node and git. The drawing is done by the codecity command in ../dist,
 // in a process of its own, so a repository too big for the box takes down that process and
 // not this one.
@@ -34,11 +38,16 @@ const LIMIT = {
   cacheMB: number("CACHE_MB", 500),
   /** How old a map may be before it is drawn again. The old one is shown meanwhile. */
   freshHours: number("FRESH_HOURS", 24),
+  /** Bytes this service may send in a calendar month (UTC). Keep it under the plan's allowance. */
+  monthGB: number("BANDWIDTH_GB_PER_MONTH", 3),
 };
 const PORT = number("PORT", 3000);
+/** What must outlast a restart: the maps, and the bandwidth spent this month. A persistent disk. */
 const HOME = process.env.DATA_DIR ?? "/tmp/codecity";
 const MAPS = path.join(HOME, "maps");
-const WORK = path.join(HOME, "work");
+const USAGE = path.join(HOME, "usage.json");
+/** Clones, which need not: scratch space, not on the disk. */
+const WORK = process.env.WORK_DIR ?? "/tmp/codecity-work";
 /** Optional. Without it GitHub answers 60 lookups an hour; with any token, 5,000. */
 const TOKEN = process.env.GITHUB_TOKEN;
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/cli.js");
@@ -73,6 +82,25 @@ async function lookUp(owner, name) {
   lookups.set(key, { at: Date.now(), answer });
   return answer;
 }
+
+// ------------------------------------------------------------------ bandwidth
+const month = () => new Date().toISOString().slice(0, 7);
+const nextMonth = () => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
+};
+let usage = { month: month(), bytes: 0 };
+let saving = null;
+function spend(bytes) {
+  if (usage.month !== month()) usage = { month: month(), bytes: 0 };
+  usage.bytes += bytes;
+  // Written at most every five seconds: a crash loses that much counting at most.
+  saving ??= setTimeout(() => {
+    saving = null;
+    fs.writeFile(USAGE, JSON.stringify(usage)).catch((error) => console.error(`usage not saved: ${error.message}`));
+  }, 5000);
+}
+const spent = () => usage.month === month() && usage.bytes >= LIMIT.monthGB * 1e9;
 
 // ------------------------------------------------------------------ drawing
 /** Repositories waiting, in order, and the one being drawn. */
@@ -304,6 +332,8 @@ function serveMap(req, res, file, size) {
 }
 
 async function map(req, res, owner, name) {
+  if (spent())
+    return send(req, res, 503, notice("Resting until next month.", `This free service has used its share of bandwidth for the month, and maps open again on ${nextMonth()}. Meanwhile, clone the repository and run <code>npx codecity</code> in it: same map, on your own machine.`));
   const key = keyOf(`${owner}/${name}`);
   const stat = await fs.stat(mapFile(key)).catch(() => null);
   if (stat) {
@@ -330,6 +360,9 @@ async function map(req, res, owner, name) {
 }
 
 const server = http.createServer(async (req, res) => {
+  // Everything sent is counted, headers included, by what actually went down the connection.
+  const before = req.socket.bytesWritten;
+  res.on("close", () => spend(req.socket.bytesWritten - before));
   try {
     if (req.method !== "GET" && req.method !== "HEAD") return send(req, res, 405, "Method not allowed", "text/plain");
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -355,5 +388,10 @@ const server = http.createServer(async (req, res) => {
 
 await fs.rm(WORK, { recursive: true, force: true }); // half-made clones from before a restart
 await fs.mkdir(MAPS, { recursive: true });
+try {
+  const saved = JSON.parse(await fs.readFile(USAGE, "utf8"));
+  if (saved.month === month()) usage = saved;
+} catch {}
+console.log(`bandwidth this month: ${(usage.bytes / 1e9).toFixed(3)} of ${LIMIT.monthGB} GB`);
 server.listen(PORT, () => console.log(`codecity service on :${PORT}`));
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => server.close(() => process.exit(0)));

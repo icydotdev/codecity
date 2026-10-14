@@ -1,4 +1,7 @@
-# codecity on the web (service/). One Starter instance and no autoscaling, so the price is fixed.
+# codecity on the web (service/). One Starter instance and no autoscaling, so compute is a fixed
+# price. Bandwidth is the one thing billed by use: the server stops serving maps once it has sent
+# BANDWIDTH_GB_PER_MONTH, which should stay under the workspace's monthly allowance less what the
+# other services use (Hobby includes 5 GB in all).
 services:
   - type: web
     name: codecity
@@ -8,7 +11,7 @@ services:
     dockerfilePath: ./service/Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
-    # Every deploy starts with no maps drawn, so deploy only for changes that affect the maps.
+    # Deploy only for changes that affect the service or the maps.
     buildFilter:
       paths:
         - src/**
@@ -17,7 +20,16 @@ services:
         - package-lock.json
         - vite.config.ts
         - tsconfig*.json
+    # Keeps the drawn maps and the month's bandwidth count through restarts and deploys.
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: BANDWIDTH_GB_PER_MONTH
+        value: "3"
       # Optional. Any GitHub token, with no permissions at all, lifts GitHub's limit on lookups
       # from 60 to 5,000 an hour.
       - key: GITHUB_TOKEN
