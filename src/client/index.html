@@ -123,6 +123,14 @@
       #era i { width: 0; height: 0; border-left: 8px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
       #era:hover { opacity: 0.86; }
       #era[hidden] { display: none; }
+      /* Share: the timeline button's twin, in the middle. While the timeline plays, its bar has the spot. */
+      #share { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--paper); background: var(--ink); border: 1px solid var(--ink); border-radius: 2px; padding: 9px 12px; cursor: pointer; }
+      #share:hover { opacity: 0.86; }
+      #share svg { margin: -2px 0; } /* as tall as the timeline button, icon or not */
+      #share[hidden], body:has(#time:not([hidden])) #share { display: none; }
+      /* The hints give it the spot: above it where there is room beside the key, otherwise not at all. */
+      body:has(#share:not([hidden])) #help { bottom: 58px; }
+      @media (max-width: 1560px) { body:has(#share:not([hidden])) #help { display: none; } }
       #time { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: min(720px, calc(100vw - 40px)); padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; backdrop-filter: blur(6px); }
       #time[hidden] { display: none; }
       #time button { font: 600 11px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); background: none; border: 1px solid var(--ink); border-radius: 2px; padding: 7px 10px; cursor: pointer; min-width: 62px; }
@@ -147,6 +155,9 @@
 
         #era, #gear { bottom: 10px; padding: 12px 14px; font-size: 12px; }
         #era { left: 10px; }
+        #share { bottom: 10px; padding: 12px 14px; font-size: 12px; }
+        #share span { display: none; } /* the icon alone: there is no room beside the timeline button */
+        #share svg { width: 16px; height: 16px; margin: -2px 0; }
         #gear { display: block; position: fixed; right: 10px; font: 600 12px/1 var(--label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); background: var(--panel); border: 1px solid var(--ink); border-radius: 2px; cursor: pointer; backdrop-filter: blur(6px); }
         body.open #gear { background: var(--ink); color: var(--paper); }
 
@@ -184,7 +195,7 @@
       <h1 id="name"></h1>
       <div class="sub"><span id="sub"></span></div>
       <button id="news" type="button"></button>
-      <div id="acts" hidden><button type="button" id="share" hidden>Share</button><a id="keep" href="copy" download hidden>Save a copy</a></div>
+      <div id="acts" hidden><a id="keep" href="copy" download>Save a copy</a></div>
     </header>
     <div id="tools">
       <input id="search" type="search" placeholder="Find a file  ( / )" autocomplete="off" spellcheck="false" aria-label="Find a file" />
@@ -198,6 +209,7 @@
     </div>
     <button type="button" id="gear" aria-expanded="false" aria-controls="tools">Settings</button>
     <button type="button" id="era"><i aria-hidden="true"></i>Play timeline</button>
+    <button type="button" id="share" hidden><svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v9M4.75 4.75 8 1.5l3.25 3.25M5 7.5H3.5v7h9v-7H11"/></svg><span>Share</span></button>
     <div id="legend"></div>
     <div id="tip"></div>
     <aside id="card" aria-live="polite"></aside>

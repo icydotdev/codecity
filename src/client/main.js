@@ -1155,11 +1155,12 @@ openView(location.hash.length > 1 ? location.hash : D.view ? `#${D.view}` : "");
 // (or, on a phone, opens the phone's own share sheet). Save a copy, while live: this map as one file.
 const shareable = /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 $("share").hidden = !shareable;
-$("keep").hidden = !D.live;
-$("acts").hidden = !(shareable || D.live);
+$("acts").hidden = !D.live;
+$("share").setAttribute("aria-label", "Share a link to this view");
 $("share").onclick = async () => {
   keepView(0);
-  const said = (text) => (($("share").textContent = text), setTimeout(() => ($("share").textContent = "Share"), 1800));
+  const label = $("share").querySelector("span");
+  const said = (text) => ((label.textContent = text), setTimeout(() => (label.textContent = "Share"), 1800));
   if (navigator.share && matchMedia("(pointer: coarse)").matches) {
     try {
       await navigator.share({ title: `${D.name} · codecity`, url: location.href });
