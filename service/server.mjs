@@ -337,8 +337,9 @@ function serveMap(req, res, file, size) {
     ...HEADERS,
     "content-type": "text/html; charset=utf-8",
     "content-security-policy": MAP_POLICY,
-    // An hour at the site's edge, so a link that is going round is mostly not served from here.
-    "cache-control": "public, max-age=600, s-maxage=3600",
+    // A day at the site's edge (maps are redrawn daily anyway), so a link that is going round is
+    // served by the site, not from here: this box's bandwidth has a monthly budget.
+    "cache-control": "public, max-age=600, s-maxage=86400, stale-while-revalidate=3600",
     vary: "accept-encoding",
     ...(zipped && { "content-encoding": "gzip", "content-length": size }),
   });
