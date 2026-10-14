@@ -1,7 +1,7 @@
 {
   "name": "codecity",
   "version": "0.7.0",
-  "description": "A 3D map of your codebase. Every file is a building, and every building keeps its place.",
+  "description": "A map of your codebase, one building per file: what changed since you last looked, where your coding agents are working, and which files everything else depends on.",
   "type": "module",
   "bin": {
     "codecity": "dist/cli.js"
