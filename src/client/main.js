@@ -71,6 +71,8 @@ const system = matchMedia("(prefers-color-scheme: dark)");
 /** The theme as chosen ("auto" among them), from whatever was asked for or remembered. Names that no longer exist mean auto. */
 const themeOf = (name) => (THEMES.some(([id]) => id === name) ? name : "auto");
 let chosen = "auto";
+// Not "codecity:land": until 0.7.0 every theme shown was saved there, chosen or not.
+const THEME_KEY = "codecity:theme";
 let T = LANDS.light;
 const PALETTE = [0x1f4bff, 0xff4f2e, 0x12a37a, 0xf59a00, 0x9b4dff, 0x00a3c7, 0xe0457b].map((hex) => new THREE.Color(hex));
 const C = Object.fromEntries(["card", "slab", "park", "dim", "old", "other", "accent", "hot", "fresh", "amber"].map((key) => [key, new THREE.Color(T[key])]));
@@ -367,8 +369,11 @@ const retire = (object) => {
   });
 };
 
-/** Change what the town stands on. Nothing about the buildings moves or changes shape. */
-function land(id) {
+/**
+ * Change what the town stands on. Nothing about the buildings moves or changes shape. Only a theme
+ * picked by hand (`pick`) is remembered: one set by the command line or the machine is not a choice.
+ */
+function land(id, pick = false) {
   chosen = themeOf(id);
   T = LANDS[chosen === "auto" ? (system.matches ? "dark" : "light") : chosen];
   document.documentElement.classList.toggle("dark", T.ui === "dark");
@@ -390,11 +395,12 @@ function land(id) {
   for (const [key, group] of built) group.visible = key === T.id;
   pave();
   $("lands").value = chosen;
-  try {
-    localStorage.setItem("codecity:land", chosen);
-  } catch {
-    /* storage switched off */
-  }
+  if (pick)
+    try {
+      localStorage.setItem(THEME_KEY, chosen);
+    } catch {
+      /* storage switched off */
+    }
   renderer.shadowMap.needsUpdate = true;
   wire(picked);
   paint();
@@ -621,7 +627,7 @@ option($("span"), "", "A length of time…");
 for (const w of WINDOWS.filter((w) => w.fixed)) option($("span"), w.id, w.label);
 $("span").onchange = (e) => ((windowId = e.target.value || "auto"), paint());
 for (const [id, label] of THEMES) option($("lands"), id, label);
-$("lands").onchange = (e) => land(e.target.value);
+$("lands").onchange = (e) => land(e.target.value, true);
 // On Auto the map follows the machine, at once, if it goes dark or light while the page is open.
 system.addEventListener("change", () => chosen === "auto" && land("auto"));
 for (const id in HEIGHTS) button($("heights"), id, HEIGHTS[id].label, () => measure(id));
@@ -918,7 +924,7 @@ function mount(data, animate) {
 }
 const stored = () => {
   try {
-    return localStorage.getItem("codecity:land");
+    return localStorage.getItem(THEME_KEY);
   } catch {
     return null; // storage switched off
   }
@@ -1079,7 +1085,7 @@ addEventListener("keydown", (e) => {
   if (key === "0") Object.assign(goal, { x: 0, z: 0, span: fit() });
   if (key === "l") (linksOn = !linksOn), wire(picked);
   if (key === "h" && clock === null && files.some((f) => f.usedBy.length)) measure(tallBy === "lines" ? "usedBy" : "lines");
-  if (key === "t") land(THEMES[(THEMES.findIndex(([id]) => id === chosen) + 1) % THEMES.length][0]);
+  if (key === "t") land(THEMES[(THEMES.findIndex(([id]) => id === chosen) + 1) % THEMES.length][0], true);
   if (key === "p" || key === " ") e.preventDefault(), clock === null ? enterHistory() : play(!playing);
   const n = Number(e.key);
   if (n >= 1 && n <= LENSES.length) leaveHistory(), (lens = LENSES[n - 1]), paint();

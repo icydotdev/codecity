@@ -22,5 +22,5 @@ const react = path.join(os.tmpdir(), "codecity-react");
 rmSync(react, { recursive: true, force: true });
 run("git", ["clone", "--quiet", "--filter=blob:none", "--single-branch", "https://github.com/react/react", react]);
 const head = execFileSync("git", ["-C", react, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-run(process.execPath, [path.join(root, "dist/cli.js"), react, "-o", path.join(out, "demo/react.html"), "--theme", "light", "--no-browser", "--link", `https://github.com/react/react/blob/${head}`]);
+run(process.execPath, [path.join(root, "dist/cli.js"), react, "-o", path.join(out, "demo/react.html"), "--no-browser", "--link", `https://github.com/react/react/blob/${head}`]);
 rmSync(react, { recursive: true, force: true });

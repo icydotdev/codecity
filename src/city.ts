@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { collect, type CityFile, type Memory } from "./collect.js";
+import { collect, progress, type CityFile, type Memory } from "./collect.js";
 import { layout, type District } from "./layout.js";
 
 // A city is everything the page needs, ready to be written into it: the files
@@ -38,6 +38,7 @@ const round = (n: number) => Math.round(n * 1000) / 1000;
 
 export function buildCity(dir: string, options: { land?: Land | null; live?: boolean; link?: string | null } = {}, before?: Memory): { city: City; memory: Memory } {
   const { repo, memory } = collect(dir, before);
+  progress("layout");
   const plan = layout(repo.files);
   const placeOf = new Map(plan.plots.map((plot, i) => [plot.file.path, i]));
   const city: City = {

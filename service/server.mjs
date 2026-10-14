@@ -102,6 +102,49 @@ function spend(bytes) {
 }
 const spent = () => usage.month === month() && usage.bytes >= LIMIT.monthGB * 1e9;
 
+// ------------------------------------------------------------------ progress
+// The steps of drawing a repository, with the share of the time each takes on a small instance.
+// Measured, roughly: the shares only decide how far the bar moves in each step.
+const STEPS = [
+  { id: "packing", share: 6 }, // GitHub counting and compressing what to send
+  { id: "downloading", share: 24 },
+  { id: "unpacking", share: 18 }, // git resolving the deltas it was sent
+  { id: "checkout", share: 10 }, // writing the files out
+  { id: "history", share: 26 }, // one `git log` over the whole history: no progress of its own
+  { id: "files", share: 10 }, // reading and measuring every file
+  { id: "layout", share: 6 },
+];
+const SHARES = STEPS.reduce((sum, step) => sum + step.share, 0);
+/** What git and the drawing command say, turned into a step and how far through it. */
+const GIT_STEPS = [
+  [/^remote: (?:Enumerating|Counting|Compressing) objects:\s+(\d+)%/, "packing"],
+  [/^Receiving objects:\s+(\d+)%/, "downloading"],
+  [/^Resolving deltas:\s+(\d+)%/, "unpacking"],
+  [/^Updating files:\s+(\d+)%/, "checkout"],
+];
+function hear(line) {
+  if (!drawing) return;
+  for (const [pattern, step] of GIT_STEPS) {
+    const m = pattern.exec(line);
+    if (m) return move(step, Number(m[1]));
+  }
+  const m = /^progress (\w+) (\d+) (\d+)$/.exec(line);
+  if (m) move(m[1] === "imports" ? "layout" : m[1], Number(m[3]) ? (100 * Number(m[2])) / Number(m[3]) : 0, m[1] === "files" ? `${Number(m[2]).toLocaleString("en")} of ${Number(m[3]).toLocaleString("en")}` : undefined);
+}
+function move(step, percent, detail) {
+  const at = STEPS.findIndex((s) => s.id === step);
+  if (at < 0 || at < drawing.at) return; // never backwards
+  if (at > drawing.at) (drawing.entered = Date.now()), console.log(`${drawing.repo.full}: ${step} after ${((Date.now() - drawing.started) / 1000).toFixed(1)}s`);
+  Object.assign(drawing, { at, step, percent, detail });
+}
+/** How far along the drawing is, 0 to 100, and the step it is on. */
+function along(job) {
+  const before = STEPS.slice(0, job.at).reduce((sum, step) => sum + step.share, 0);
+  // Reading the history says nothing until it is done, so its share fills on time, ever more slowly.
+  const percent = job.step === "history" ? 100 * (1 - Math.exp(-(Date.now() - job.entered) / 25_000)) : job.percent;
+  return { step: job.step, stepPercent: Math.round(percent), detail: job.detail, percent: Math.min(99, Math.round(((before + (STEPS[job.at].share * percent) / 100) / SHARES) * 100)) };
+}
+
 // ------------------------------------------------------------------ drawing
 /** Repositories waiting, in order, and the one being drawn. */
 const waiting = [];
@@ -124,7 +167,7 @@ function ask(repo) {
 
 async function next() {
   if (drawing || !waiting.length) return;
-  drawing = { ...waiting.shift(), stage: "cloning", started: Date.now() };
+  drawing = { ...waiting.shift(), stage: "cloning", started: Date.now(), entered: Date.now(), at: 0, step: "packing", percent: 0 };
   const { key, repo, started } = drawing;
   try {
     await draw(repo);
@@ -139,14 +182,20 @@ async function next() {
   }
 }
 
-/** Run a command; kill it and everything it started if it takes longer than `seconds`. */
-function run(command, args, seconds, why) {
+/**
+ * Run a command; kill it and everything it started if it takes longer than `seconds`. Each line it
+ * writes to stderr goes to `heard` as it comes (git's progress ends its lines with \r, not \n).
+ */
+function run(command, args, seconds, why, heard = () => {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+    const child = spawn(command, args, { detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, GIT_TERMINAL_PROMPT: "0", CODECITY_PROGRESS: "1" } });
     let out = "";
     let err = "";
     child.stdout.on("data", (chunk) => (out += chunk));
-    child.stderr.on("data", (chunk) => (err = (err + chunk).slice(-2000)));
+    child.stderr.on("data", (chunk) => {
+      err = (err + chunk).slice(-2000);
+      for (const line of String(chunk).split(/[\r\n]+/)) if (line.trim()) heard(line.trim());
+    });
     const timer = setTimeout(() => {
       try {
         process.kill(-child.pid, "SIGKILL"); // git starts helpers of its own; they go too
@@ -174,18 +223,20 @@ async function draw({ full, branch }) {
   try {
     await run(
       "git",
-      ["-c", "pack.threads=1", "clone", "--quiet", "--single-branch", "--no-tags", "--branch", branch, "--depth", String(LIMIT.depth), `https://github.com/${full}.git`, dir],
+      ["-c", "pack.threads=1", "clone", "--progress", "--single-branch", "--no-tags", "--branch", branch, "--depth", String(LIMIT.depth), `https://github.com/${full}.git`, dir],
       LIMIT.cloneSeconds,
       "clone",
+      hear,
     );
     const head = (await run("git", ["-C", dir, "rev-parse", "HEAD"], 10, "read")).trim();
-    if (drawing) drawing.stage = "drawing";
+    if (drawing) (drawing.stage = "drawing"), move("history", 0);
     const out = path.join(place, "map.html");
     await run(
       process.execPath,
       [`--max-old-space-size=${LIMIT.drawMB}`, CLI, dir, "-o", out, "--no-browser", "--link", `https://github.com/${full}/blob/${head}`],
       LIMIT.drawSeconds,
       "draw",
+      hear,
     );
     const html = (await fs.readFile(out, "utf8")).replace("</header>", () => BACK + "</header>");
     const zipped = zlib.gzipSync(html, { level: 9 });
@@ -268,7 +319,7 @@ async function status(req, owner, name) {
     if (ago(stat.mtimeMs) > LIMIT.freshHours * HOUR && !inLine(key)) lookUp(owner, name).then((repo) => repo.full && ask(repo));
     return { state: "ready" };
   }
-  if (inLine(key)) return drawing?.key === key ? { state: "drawing", stage: drawing.stage, since: drawing.started } : { state: "waiting", ahead: placeInLine(key) - (drawing ? 0 : 1) };
+  if (inLine(key)) return drawing?.key === key ? { state: "drawing", stage: drawing.stage, since: drawing.started, ...along(drawing) } : { state: "waiting", ahead: placeInLine(key) - (drawing ? 0 : 1) };
   const failed = failures.get(key);
   if (failed && ago(failed.at) < 10 * 60_000) return { state: "error", reason: "failed", message: failed.why };
 
@@ -282,7 +333,7 @@ async function status(req, owner, name) {
   if (waiting.length >= LIMIT.queue) return { state: "error", reason: "busy", message: "Too many repositories are waiting to be drawn. Try again in a few minutes." };
   if (!allowed(visitorOf(req))) return { state: "error", reason: "limit", message: `Each visitor can ask for ${LIMIT.perHour} new maps an hour. Maps already drawn open any time.` };
   ask(repo);
-  return drawing?.key === key ? { state: "drawing", stage: drawing.stage, since: drawing.started } : { state: "waiting", ahead: placeInLine(key) - (drawing ? 0 : 1) };
+  return drawing?.key === key ? { state: "drawing", stage: drawing.stage, since: drawing.started, ...along(drawing) } : { state: "waiting", ahead: placeInLine(key) - (drawing ? 0 : 1) };
 }
 
 const server = http.createServer(async (req, res) => {

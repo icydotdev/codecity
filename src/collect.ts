@@ -307,6 +307,12 @@ function pulled(root: string): Repo["pull"] {
   }
 }
 
+/**
+ * How far along the work is, for a program running this one that asks (CODECITY_PROGRESS=1): a
+ * line on stderr, `progress <step> <done> <total>`. The web service turns these into its progress bar.
+ */
+export const progress = process.env.CODECITY_PROGRESS ? (step: string, done = 0, total = 0) => void process.stderr.write(`progress ${step} ${done} ${total}\n`) : () => {};
+
 export function collect(dir: string, before?: Memory): { repo: Repo; memory: Memory } {
   const root = git(dir, ["rev-parse", "--show-toplevel"]).trim();
   const list = (args: string[]) => git(root, args).split("\0").filter(Boolean);
@@ -315,6 +321,7 @@ export function collect(dir: string, before?: Memory): { repo: Repo; memory: Mem
   const dirty = new Set(untracked);
   for (const args of [["diff", "--name-only", "-z"], ["diff", "--name-only", "-z", "--cached"]]) for (const name of list(args)) dirty.add(name);
 
+  progress("history");
   const memory = remember(root, new Set(tracked), before);
   const now = Math.floor(Date.now() / 1000);
   const authors: string[] = [];
@@ -327,7 +334,10 @@ export function collect(dir: string, before?: Memory): { repo: Repo; memory: Mem
   const files: CityFile[] = [];
   const written = new Map<string, string[]>(); // what each script says it imports, as written
   const foreign = new Map<string, Spec[]>(); // the same for Python, Go, Rust, the JVM languages and C
-  for (const name of [...tracked, ...untracked]) {
+  const names = [...tracked, ...untracked];
+  const every = Math.max(1, Math.round(names.length / 50));
+  for (const [i, name] of names.entries()) {
+    if (i % every === 0) progress("files", i, names.length);
     const full = path.join(root, name);
     let size: number;
     let stamp: number;
@@ -374,6 +384,8 @@ export function collect(dir: string, before?: Memory): { repo: Repo; memory: Mem
     });
   }
 
+  progress("files", names.length, names.length);
+  progress("imports");
   // Which of those imports are files here: the links between buildings.
   const known = new Set(files.map((file) => file.path));
   const aliases = aliasesOf(root);
