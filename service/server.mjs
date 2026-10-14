@@ -103,16 +103,17 @@ function spend(bytes) {
 const spent = () => usage.month === month() && usage.bytes >= LIMIT.monthGB * 1e9;
 
 // ------------------------------------------------------------------ progress
-// The steps of drawing a repository, with the share of the time each takes on a small instance.
-// Measured, roughly: the shares only decide how far the bar moves in each step.
+// The steps of drawing a repository, with the share of the time each takes on the free instance.
+// Measured on angular/angular (11,667 files, 140 s): the shares only decide how far the bar moves
+// in each step, so that it moves at about the same speed throughout.
 const STEPS = [
-  { id: "packing", share: 6 }, // GitHub counting and compressing what to send
-  { id: "downloading", share: 24 },
-  { id: "unpacking", share: 18 }, // git resolving the deltas it was sent
-  { id: "checkout", share: 10 }, // writing the files out
-  { id: "history", share: 26 }, // one `git log` over the whole history: no progress of its own
-  { id: "files", share: 10 }, // reading and measuring every file
-  { id: "layout", share: 6 },
+  { id: "packing", share: 5 }, // GitHub counting and compressing what to send
+  { id: "downloading", share: 12 },
+  { id: "unpacking", share: 22 }, // git resolving the deltas it was sent
+  { id: "checkout", share: 5 }, // writing the files out
+  { id: "history", share: 43 }, // one `git log` over the whole history: no progress of its own
+  { id: "files", share: 8 }, // reading and measuring every file
+  { id: "layout", share: 5 },
 ];
 const SHARES = STEPS.reduce((sum, step) => sum + step.share, 0);
 /** What git and the drawing command say, turned into a step and how far through it. */
@@ -141,7 +142,7 @@ function move(step, percent, detail) {
 function along(job) {
   const before = STEPS.slice(0, job.at).reduce((sum, step) => sum + step.share, 0);
   // Reading the history says nothing until it is done, so its share fills on time, ever more slowly.
-  const percent = job.step === "history" ? 100 * (1 - Math.exp(-(Date.now() - job.entered) / 25_000)) : job.percent;
+  const percent = job.step === "history" ? 100 * (1 - Math.exp(-(Date.now() - job.entered) / 30_000)) : job.percent;
   return { step: job.step, stepPercent: Math.round(percent), detail: job.detail, percent: Math.min(99, Math.round(((before + (STEPS[job.at].share * percent) / 100) / SHARES) * 100)) };
 }
 
