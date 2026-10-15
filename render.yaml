@@ -1,11 +1,13 @@
-# codecity on the web (service/). One free instance and no autoscaling, so compute costs nothing.
+# codecity on the web (service/). One Starter instance and no autoscaling, so compute is a fixed
+# price (switch to `plan: free` to pay nothing, at the cost of sleeping when idle).
 # Bandwidth is the one thing billed by use ($0.15 a GB beyond the workspace's allowance, 5 GB on
 # Hobby, shared by every service): the server stops serving maps once it has sent
 # BANDWIDTH_GB_PER_MONTH.
 #
 # A free instance sleeps after 15 minutes without visitors, takes about a minute to wake, and loses
-# its files when it sleeps: the drawn maps, and the count of bandwidth spent. To keep both and
-# draw faster, use `plan: starter` and add this under the service:
+# its files when it sleeps: the drawn maps, and the count of bandwidth spent. Starter does not
+# sleep, so these last until the next deploy; to keep them through deploys too, add this under
+# the service:
 #
 #   disk:
 #     name: data
@@ -17,7 +19,7 @@ services:
   - type: web
     name: codecity
     runtime: docker
-    plan: free
+    plan: starter
     numInstances: 1
     dockerfilePath: ./service/Dockerfile
     dockerContext: .
