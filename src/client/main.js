@@ -58,10 +58,11 @@ const wake = () => (frames = 3);
 // ------------------------------------------------------------------ land
 // The buildings are the data, and they are the same in every land: same shapes, same places, and the
 // same white light, so a colour means the same thing wherever the town stands. What it stands on is taste.
-const DAYLIGHT = { ui: "light", card: 0xfbfbfc, slab: 0xbcc3cb, old: 0x4a5670, other: 0xaab2bc, accent: 0x1f4bff, hot: 0xff4f2e, fresh: 0x0fa97c, amber: 0xf59a00, bounce: 0xd2d7dd, sun: 2.0, air: 1.5 };
+// So is `glass`: how bright a window is beside the wall it is in, below 1 for glass by day, above 1 for lit at night.
+const DAYLIGHT = { ui: "light", card: 0xfbfbfc, slab: 0xbcc3cb, old: 0x4a5670, other: 0xaab2bc, accent: 0x1f4bff, hot: 0xff4f2e, fresh: 0x0fa97c, amber: 0xf59a00, bounce: 0xd2d7dd, sun: 2.0, air: 1.5, glass: 0.62 };
 const LANDS = {
   light: { label: "Light", ground: 0xd2d7dd, plates: [0xe2e5e9, 0xeaecef, 0xf1f2f4], park: 0xc2d6c6, dim: 0xd6dadf, base: 0xdde1e6, rim: 0xffffff, halo: 0xc3c9d1 },
-  dark: { label: "Dark", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, base: 0x1c2129, rim: 0x39424f, halo: 0x10141a, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1 },
+  dark: { label: "Dark", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, base: 0x1c2129, rim: 0x39424f, halo: 0x10141a, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1, glass: 1.6 },
   beach: { label: "Beach", ground: 0x7fc4d0, plates: [0xf1e2bd, 0xf5ead0, 0xf8f1e0], park: 0xf3b89a, dim: 0xe3d3a8 },
 };
 for (const id in LANDS) LANDS[id] = { ...DAYLIGHT, ...LANDS[id], id };
@@ -138,6 +139,81 @@ const q0 = new THREE.Quaternion();
 const put = (mesh, i, x, y, z, sx, sy, sz) => mesh.setMatrixAt(i, m4.compose(v3.set(x, y, z), q0, s3.set(sx, sy, sz)));
 const townMaterial = matte(0xffffff);
 const plateMaterial = matte(0xffffff);
+
+// Windows, so that a building reads as a building and not as a bar on a chart, and a parapet round
+// its roof. Both only make a surface lighter or darker, never another colour: the colour is still the
+// lens. A tower has bigger windows than a hut, as it would, but every building has the same size of
+// window on all its floors, and a box too short for a storey (a slab, a tile) has none.
+//
+// Further off, a window becomes too few pixels to draw. Then the windows in a row run together into a
+// band of glass, one band to a storey, and further still the storeys run together into an even shade
+// of the wall: each step is the one before seen from further away, so nothing jumps as you zoom.
+const BAY = 0.62; // from the middle of one window to the middle of the next, across, on a small building
+const STOREY = 0.78; // and up
+const FILL = 0.6; // how much of a bay, and of a storey, is glass
+const PARAPET = 0.12;
+/** How much bigger than a small building's this building's windows are. It goes by length, so it stays put whatever height is showing. */
+const facadeOf = (f) => Math.min(2.6, Math.max(1, Math.sqrt(HEIGHTS.lines.of(f) / 6)));
+const glass = { value: T.glass };
+townMaterial.onBeforeCompile = (shader) => {
+  shader.uniforms.glass = glass;
+  shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nattribute float facade;\nvarying vec3 vAt;\nvarying vec3 vSize;\nvarying vec3 vSide;\nvarying float vFacade;").replace(
+    "#include <begin_vertex>",
+    `#include <begin_vertex>
+    // Where this point is on its box, in the map's units (from the middle across, from the foot up), how big the box is, and which way the face looks.
+    vSize = vec3(1.0);
+    #ifdef USE_INSTANCING
+      vSize = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+    #endif
+    vAt = position * vSize;
+    vSide = abs(normal);
+    vFacade = facade;`,
+  );
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      "#include <common>",
+      `#include <common>
+      uniform float glass;
+      varying vec3 vAt;
+      varying vec3 vSize;
+      varying vec3 vSide;
+      varying float vFacade;
+      // How much of the way along a row of windows \`pitch\` apart is glass: 1 on a window and 0 between, with edges \`soft\` wide.
+      // Where a pixel is more than about a third of the pitch, the windows are too small to draw and the row is an even ${FILL}.
+      float panes(float x, float pitch, float soft) {
+        float pane = 1.0 - smoothstep(${FILL} * pitch * 0.5 - soft, ${FILL} * pitch * 0.5 + soft, abs(fract(x / pitch) - 0.5) * pitch);
+        return mix(pane, ${FILL}, smoothstep(0.2, 0.4, soft / pitch));
+      }
+      float within(float x, float to) {
+        return step(0.0, x) * step(x, to);
+      }`,
+    )
+    .replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      {
+        // How much of the map a pixel covers, worked out before any branch so that it is the same across neighbouring pixels.
+        vec3 soft = fwidth(vAt);
+        float bay = ${BAY} * vFacade;
+        float storey = ${STOREY} * vFacade;
+        float storeys = floor((vSize.y - 0.15) / storey);
+        if (vSide.y < 0.5) {
+          bool east = vSide.x > 0.5;
+          float bays = floor((east ? vSize.z : vSize.x) / bay - 0.25);
+          float across = (east ? vAt.z : vAt.x) + bays * bay * 0.5;
+          float up = vAt.y - 0.08 * vFacade;
+          float pane = within(across, bays * bay) * within(up, storeys * storey) * panes(across, bay, east ? soft.z : soft.x) * panes(up, storey, soft.y);
+          diffuseColor.rgb *= mix(1.0, glass, pane);
+        } else if (storeys > 0.0) {
+          // The parapet is the roof's own colour, and so is the roof inside it: only the line where they meet is darker.
+          // From far off it goes, and the roof is its colour all over.
+          float edge = min(vSize.x * 0.5 - abs(vAt.x), vSize.z * 0.5 - abs(vAt.z));
+          float line = smoothstep(${PARAPET} - soft.x, ${PARAPET} + soft.x, edge) * (1.0 - smoothstep(${PARAPET * 1.6} - soft.x, ${PARAPET * 1.6} + soft.x, edge));
+          diffuseColor.rgb *= mix(1.0, 0.78, line * (1.0 - smoothstep(0.2, 0.4, max(soft.x, soft.z) / ${BAY})));
+        }
+      }`,
+    );
+};
 const lampMaterial = new THREE.MeshBasicMaterial({ color: T.amber });
 
 const marker = (opacity) => {
@@ -386,6 +462,7 @@ function land(id, pick = false) {
   if (plates.instanceColor) plates.instanceColor.needsUpdate = true;
   for (const key in C) C[key].set(T[key]);
   lampMaterial.color.set(T.amber);
+  glass.value = T.glass;
   hoverPlate.material.color.set(T.accent);
   pickPlate.material.color.set(T.accent);
   if (!built.has(T.id)) {
@@ -920,7 +997,12 @@ function mount(data, animate) {
 
   for (const old of [town, plates, lamps, ...built.values()]) if (old) retire(old);
   built.clear();
-  town = new THREE.InstancedMesh(box, townMaterial, Math.max(1, next));
+  // The town's own box, so that it can carry how big each building's windows are.
+  const townBox = box.clone();
+  const scales = new Float32Array(Math.max(1, next));
+  files.forEach((f) => scales.fill(facadeOf(f), f.first, f.first + f.floors.length));
+  townBox.setAttribute("facade", new THREE.InstancedBufferAttribute(scales, 1));
+  town = new THREE.InstancedMesh(townBox, townMaterial, Math.max(1, next));
   town.count = next;
   town.castShadow = town.receiveShadow = true;
   // The mesh is told where its buildings are, so it is not skipped when the camera looks at one corner.
