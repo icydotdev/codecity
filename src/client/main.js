@@ -706,7 +706,8 @@ const eraWindow = () => moments[Math.max(0, Math.round(playhead) - Math.max(2, M
 const eraColor = (f) => {
   const from = eraWindow();
   const last = touchedBy(f, clock);
-  if (last < from || clock === from) return plain(f);
+  // Not built yet, though it may still be sinking into the ground from a later day: not "just built" either.
+  if (f.birth > clock || last < from || clock === from) return plain(f);
   return tmp.copy(plain(f)).lerp(f.birth >= from ? C.fresh : C.hot, 0.45 + 0.55 * ((last - from) / (clock - from)));
 };
 
