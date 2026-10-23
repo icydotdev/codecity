@@ -147,7 +147,7 @@ A view only ever changes colour. Position and shape always mean the same thing.
 
 ### Themes
 
-Three themes are included: **Light**, **Dark** and **Beach**. By default the map follows your system's light or dark setting. A theme changes the ground the map stands on. It never changes what the buildings' colours mean.
+Four themes are included: **Light**, **Dark**, **Beach** and **Midnight**, a city at night with its windows lit in neon. By default the map follows your system's light or dark setting. A theme changes the ground the map stands on. It never changes what the buildings' colours mean.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/icydotdev/codecity/main/assets/screenshot-plain.jpg" width="400" alt="Light theme" />
@@ -162,7 +162,7 @@ codecity [folder] [options]
   -o <file>         Write the map to one HTML file and stop, to keep or share
   --once            The same, to a temporary folder
   --port <number>   Port to serve the live map on (default: 3737)
-  --theme <name>    Theme: auto, light, dark, beach (default: auto)
+  --theme <name>    Theme: auto, light, dark, beach, midnight (default: auto)
   --link <url>      Link each file to <url>/<path> instead of opening it
                     in VS Code, for maps you publish. For a GitHub
                     repository: https://github.com/<owner>/<repo>/blob/main
