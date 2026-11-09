@@ -1,4 +1,8 @@
 import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 
 // The page. It is given a town (the files, their plots, the districts) and draws it. It can be
 // given another town later, when the files change under a watcher, and then nothing is thrown
@@ -58,11 +62,46 @@ const wake = () => (frames = 3);
 // ------------------------------------------------------------------ land
 // The buildings are the data, and they are the same in every land: same shapes, same places, and the
 // same white light, so a colour means the same thing wherever the town stands. What it stands on is taste.
-const DAYLIGHT = { ui: "light", card: 0xfbfbfc, slab: 0xbcc3cb, old: 0x4a5670, other: 0xaab2bc, accent: 0x1f4bff, hot: 0xff4f2e, fresh: 0x0fa97c, amber: 0xf59a00, bounce: 0xd2d7dd, sun: 2.0, air: 1.5 };
+// So are the windows: `glass` is how bright a window's glass is beside the wall it is in (below 1 for glass
+// by day, above 1 for lit), `neon` how much light a lit window gives off, and `lit` how many of them are lit.
+// `bands` runs a storey's windows together into one band of glass, `trim` lights a building's edges and
+// `kerbs` a district's, and `bloom` lets all that light bleed into the dark round it.
+const DAYLIGHT = { ui: "light", card: 0xfbfbfc, slab: 0xbcc3cb, old: 0x4a5670, other: 0xaab2bc, accent: 0x1f4bff, hot: 0xff4f2e, fresh: 0x0fa97c, amber: 0xf59a00, bounce: 0xd2d7dd, sun: 2.0, air: 1.5, glass: 0.62, neon: 0, lit: 1, bands: 0, trim: 0, kerbs: 0, bloom: 0 };
 const LANDS = {
   light: { label: "Light", ground: 0xd2d7dd, plates: [0xe2e5e9, 0xeaecef, 0xf1f2f4], park: 0xc2d6c6, dim: 0xd6dadf, base: 0xdde1e6, rim: 0xffffff, halo: 0xc3c9d1 },
-  dark: { label: "Dark", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, base: 0x1c2129, rim: 0x39424f, halo: 0x10141a, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1 },
+  dark: { label: "Dark", ui: "dark", ground: 0x14181e, plates: [0x1b2028, 0x212731, 0x272e39], card: 0x6b7686, slab: 0x2b323b, park: 0x2c4236, dim: 0x1a1f26, base: 0x1c2129, rim: 0x39424f, halo: 0x10141a, old: 0x232a35, other: 0x4a5462, accent: 0x6f95ff, hot: 0xff6a4a, fresh: 0x2fc49a, amber: 0xffb53d, bounce: 0x14181e, sun: 2.1, glass: 1.6 },
   beach: { label: "Beach", ground: 0x7fc4d0, plates: [0xf1e2bd, 0xf5ead0, 0xf8f1e0], park: 0xf3b89a, dim: 0xe3d3a8 },
+  // A city of the future at midnight: towers of dark glass banded with light, neon along every edge, and
+  // all of it burning in the buildings' own colours. Warm is still lately, in neon pink.
+  midnight: {
+    label: "Midnight",
+    ui: "dark",
+    ground: 0x04050d,
+    plates: [0x0a0c1d, 0x0e1126, 0x13172f],
+    card: 0x4a5684,
+    slab: 0x1c2040,
+    park: 0x163a3c,
+    dim: 0x0a0c19,
+    old: 0x151a36,
+    other: 0x3c4266,
+    accent: 0x00e1ff,
+    hot: 0xff2e8a,
+    fresh: 0x2bff9e,
+    amber: 0xffc21a,
+    bounce: 0x080a1c,
+    sun: 0.7,
+    air: 0.6,
+    glass: 0.25,
+    neon: 0.8,
+    lit: 0.7,
+    bands: 1,
+    trim: 1.6,
+    kerbs: 1.3,
+    bloom: 0.7,
+    base: 0x070916,
+    rim: 0xff2e8a,
+    halo: 0x00e1ff,
+  },
 };
 for (const id in LANDS) LANDS[id] = { ...DAYLIGHT, ...LANDS[id], id };
 // What can be chosen. "auto" is light or dark, whichever the machine is set to, and is where everyone starts.
@@ -138,6 +177,157 @@ const q0 = new THREE.Quaternion();
 const put = (mesh, i, x, y, z, sx, sy, sz) => mesh.setMatrixAt(i, m4.compose(v3.set(x, y, z), q0, s3.set(sx, sy, sz)));
 const townMaterial = matte(0xffffff);
 const plateMaterial = matte(0xffffff);
+
+// Windows, so that a building reads as a building and not as a bar on a chart, and a parapet round
+// its roof. Both only make a surface lighter or darker, never another colour: the colour is still the
+// lens. A tower has bigger windows than a hut, as it would, but every building has the same size of
+// window on all its floors, and a box too short for a storey (a slab, a tile) has none.
+//
+// Further off, a window becomes too few pixels to draw. Then the windows in a row run together into a
+// band of glass, one band to a storey, and further still the storeys run together into an even shade
+// of the wall: each step is the one before seen from further away, so nothing jumps as you zoom.
+//
+// By night (a land whose `neon` is above 0) some windows are lit, always the same ones, and give off
+// light the colour of their own building: a lit window says what its wall says, only brighter. So does
+// neon `trim` along a building's edges, which stays at least a pixel wide however far off it is.
+const BAY = 0.62; // from the middle of one window to the middle of the next, across, on a small building
+const STOREY = 0.78; // and up
+const FILL = 0.6; // how much of a bay, and of a storey, is glass
+const PARAPET = 0.12;
+const TRIM = 0.07;
+const KERB = 0.09;
+const GLOW = 0.42; // how bright to the eye a building's light is, before a land's `neon` or `trim`, when its wall is as bright as it can be
+/** How much bigger than a small building's this building's windows are. It goes by length, so it stays put whatever height is showing. */
+const facadeOf = (f) => Math.min(2.6, Math.max(1, Math.sqrt(HEIGHTS.lines.of(f) / 6)));
+/** A number from 0 to 1 that is always the same for the same file, so its lit windows are the same ones every time. */
+const seedOf = (f) => ([...f.path].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619), 2166136261) >>> 0) / 4294967296;
+const facade = { glass: { value: T.glass }, neon: { value: T.neon }, lit: { value: T.lit }, bands: { value: T.bands }, trim: { value: T.trim } };
+const kerbs = { kerbs: { value: T.kerbs }, outer: { value: new THREE.Color(T.rim) }, inner: { value: new THREE.Color(T.halo) } };
+/** Tell a box's shader where each point is on the box, in the map's units (from the middle across, from the foot up), how big the box is, and which way the face looks. */
+const measured = (shader, extra = "") => {
+  shader.vertexShader = shader.vertexShader.replace("#include <common>", `#include <common>\nvarying vec3 vAt;\nvarying vec3 vSize;\nvarying vec3 vSide;\n${extra}`).replace(
+    "#include <begin_vertex>",
+    `#include <begin_vertex>
+    vSize = vec3(1.0);
+    #ifdef USE_INSTANCING
+      vSize = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+    #endif
+    vAt = position * vSize;
+    vSide = abs(normal);`,
+  );
+  shader.fragmentShader = shader.fragmentShader.replace(
+    "#include <common>",
+    `#include <common>
+    varying vec3 vAt;
+    varying vec3 vSize;
+    varying vec3 vSide;
+    // A line of light \`width\` wide along an edge \`edge\` away, drawn softly and never less than about a pixel wide.
+    // A line drawn wider than it is gives off less light than it would at its own width, so that far off, where
+    // the line round a small building is most of the building, the building does not become a light. Not in
+    // full proportion, or a far-off town would lose its neon altogether.
+    float rule(float edge, float width, float soft) {
+      float drawn = max(width, soft * 0.75);
+      return (1.0 - smoothstep(drawn - soft, drawn + soft, edge)) * sqrt(width / drawn);
+    }
+    // A colour as a light gives it off. Every hue is about as bright to the eye as every other (green and amber
+    // would otherwise outshine pink and blue, though a deep blue is not pushed past what it can bear), and a
+    // dark colour gives off less than a light one, so a lit town still reads the way the lens does.
+    vec3 lamp(vec3 colour) {
+      float peak = max(max(colour.r, max(colour.g, colour.b)), 1e-4);
+      vec3 hue = colour / peak;
+      return hue * min(${GLOW} / max(dot(hue, vec3(0.2126, 0.7152, 0.0722)), 1e-4), 2.2) * sqrt(peak);
+    }`,
+  );
+};
+townMaterial.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, facade);
+  measured(shader, "attribute vec2 facade;\nvarying vec2 vFacade;");
+  shader.vertexShader = shader.vertexShader.replace("vSide = abs(normal);", "vSide = abs(normal);\n    vFacade = facade;");
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      "varying vec3 vSide;",
+      `varying vec3 vSide;
+      varying vec2 vFacade;
+      uniform float glass;
+      uniform float neon;
+      uniform float lit;
+      uniform float bands;
+      uniform float trim;
+      // How much of the way along a row of windows \`pitch\` apart is glass: 1 on a window and 0 between, with edges \`soft\` wide.
+      float panes(float x, float pitch, float fill, float soft) {
+        return 1.0 - smoothstep(fill * pitch * 0.5 - soft, fill * pitch * 0.5 + soft, abs(fract(x / pitch) - 0.5) * pitch);
+      }
+      // 1 while a pixel is small beside the pitch, falling to 0 as it covers more than about a third of it: too small to draw.
+      float sharp(float soft, float pitch) {
+        return 1.0 - smoothstep(0.2, 0.4, soft / pitch);
+      }
+      float within(float x, float to) {
+        return step(0.0, x) * step(x, to);
+      }`,
+    )
+    .replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      {
+        // How much of the map a pixel covers, worked out before any branch so that it is the same across neighbouring pixels.
+        vec3 soft = fwidth(vAt);
+        float bay = ${BAY} * vFacade.x;
+        float storey = ${STOREY} * vFacade.x;
+        float storeys = floor((vSize.y - 0.15) / storey);
+        vec3 light = lamp(diffuseColor.rgb);
+        float edging;
+        if (vSide.y < 0.5) {
+          bool east = vSide.x > 0.5;
+          float width = east ? vSize.z : vSize.x;
+          float along = east ? vAt.z : vAt.x;
+          float softAcross = east ? soft.z : soft.x;
+          float bays = floor(width / bay - 0.25);
+          float across = along + bays * bay * 0.5;
+          float up = vAt.y - 0.08 * vFacade.x;
+          float sharpAcross = sharp(softAcross, bay);
+          float sharpUp = sharp(soft.y, storey);
+          // In bands, the windows of a storey run on into one another, with only a thin frame between.
+          float fill = mix(${FILL}, 0.94, bands);
+          float pane = within(across, bays * bay) * within(up, storeys * storey) * mix(fill, panes(across, bay, fill, softAcross), sharpAcross) * mix(${FILL}, panes(up, storey, ${FILL}, soft.y), sharpUp);
+          // Which windows have their lights on. Too far off to tell one window from the next, a wall is as lit as its windows are on average.
+          float on = step(fract(sin(dot(vec3(floor(across / bay), floor(up / storey), vFacade.y * 97.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453), lit);
+          on = mix(lit, on, sharpAcross * sharpUp);
+          totalEmissiveRadiance += neon * pane * on * light;
+          diffuseColor.rgb *= mix(1.0, glass, pane);
+          // The corners, and the top of the wall.
+          edging = max(rule(width * 0.5 - abs(along), ${TRIM}, softAcross), rule(vSize.y - vAt.y, ${TRIM}, soft.y));
+        } else {
+          float edge = min(vSize.x * 0.5 - abs(vAt.x), vSize.z * 0.5 - abs(vAt.z));
+          float softRoof = max(soft.x, soft.z);
+          if (storeys > 0.0) {
+            // The parapet is the roof's own colour, and so is the roof inside it: only the line where they meet is darker.
+            // From far off it goes, and the roof is its colour all over.
+            float line = smoothstep(${PARAPET} - soft.x, ${PARAPET} + soft.x, edge) * (1.0 - smoothstep(${PARAPET * 1.6} - soft.x, ${PARAPET * 1.6} + soft.x, edge));
+            diffuseColor.rgb *= mix(1.0, 0.78, line * sharp(softRoof, ${BAY}));
+          }
+          edging = rule(edge, ${TRIM}, softRoof);
+        }
+        totalEmissiveRadiance += trim * edging * light;
+      }`,
+    );
+};
+// A district's plate can be edged in light too: one colour for the outermost folders, another for those inside them.
+plateMaterial.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, kerbs);
+  measured(shader);
+  shader.fragmentShader = shader.fragmentShader
+    .replace("varying vec3 vSide;", "varying vec3 vSide;\nuniform float kerbs;\nuniform vec3 outer;\nuniform vec3 inner;")
+    .replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      {
+        vec3 soft = fwidth(vAt);
+        float line = vSide.y > 0.5 ? rule(min(vSize.x * 0.5 - abs(vAt.x), vSize.z * 0.5 - abs(vAt.z)), ${KERB}, max(soft.x, soft.z)) : 0.0;
+        // A plate is a step thicker for every folder it is inside.
+        totalEmissiveRadiance += kerbs * line * lamp(vSize.y < 0.075 ? outer : inner);
+      }`,
+    );
+};
 const lampMaterial = new THREE.MeshBasicMaterial({ color: T.amber });
 
 const marker = (opacity) => {
@@ -299,13 +489,13 @@ function onField(x, z, grow) {
   const dz = Math.max(Math.abs(z) - (H / 2 + grow - r), 0);
   return Math.hypot(dx, dz) <= r;
 }
-/** A rounded piece of ground, the size of the town and `grow` more all round: the island, and the water round it. */
-function field(group, grow, y, hex) {
+/** A rounded piece of ground, the size of the town and `grow` more all round: the island, and the water round it. A `glowing` one gives off its own light, as neon does. */
+function field(group, grow, y, hex, glowing = false) {
   const w = W / 2 + grow;
   const h = H / 2 + grow;
   const r = cornerOf(grow);
   const shape = new THREE.Shape().moveTo(-w + r, -h).lineTo(w - r, -h).absarc(w - r, -h + r, r, -Math.PI / 2, 0).lineTo(w, h - r).absarc(w - r, h - r, r, 0, Math.PI / 2).lineTo(-w + r, h).absarc(-w + r, h - r, r, Math.PI / 2, Math.PI).lineTo(-w, -h + r).absarc(-w + r, -h + r, r, Math.PI, Math.PI * 1.5);
-  const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape, 16).rotateX(-Math.PI / 2), matte(hex));
+  const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape, 16).rotateX(-Math.PI / 2), glowing ? new THREE.MeshBasicMaterial({ color: hex }) : matte(hex));
   mesh.position.y = y;
   mesh.receiveShadow = true;
   group.add(mesh);
@@ -325,6 +515,24 @@ function board(colours) {
 const SCENERY = {
   light: () => board(LANDS.light),
   dark: () => board(LANDS.dark),
+  midnight() {
+    const group = new THREE.Group();
+    const { halo, rim, base, ground } = LANDS.midnight;
+    const edge = 6;
+    // The board, edged in neon: a thin line of one colour, dark, then a line of the other right at the edge.
+    field(group, edge + 1.9, 0.008, halo, true);
+    field(group, edge + 1.72, 0.012, ground);
+    field(group, edge + 0.3, 0.016, rim, true);
+    field(group, edge, 0.024, base);
+    // A grid ruled faintly across the dark ground beyond it, as far as the ground goes.
+    const size = Math.ceil((reach * 8) / CELL) * CELL;
+    const grid = new THREE.GridHelper(size, size / CELL, halo, halo);
+    grid.material.transparent = true;
+    grid.material.opacity = 0.08;
+    grid.position.y = 0.004;
+    group.add(grid);
+    return group;
+  },
   beach() {
     const s = pieces();
     const shore = 9;
@@ -377,6 +585,7 @@ function land(id, pick = false) {
   chosen = themeOf(id);
   T = LANDS[chosen === "auto" ? (system.matches ? "dark" : "light") : chosen];
   document.documentElement.classList.toggle("dark", T.ui === "dark");
+  document.documentElement.dataset.land = T.id;
   scene.background.set(T.ground);
   ground.material.color.set(T.ground);
   air.groundColor.set(T.bounce);
@@ -386,6 +595,10 @@ function land(id, pick = false) {
   if (plates.instanceColor) plates.instanceColor.needsUpdate = true;
   for (const key in C) C[key].set(T[key]);
   lampMaterial.color.set(T.amber);
+  for (const key in facade) facade[key].value = T[key];
+  kerbs.kerbs.value = T.kerbs;
+  kerbs.outer.value.set(T.rim);
+  kerbs.inner.value.set(T.halo);
   hoverPlate.material.color.set(T.accent);
   pickPlate.material.color.set(T.accent);
   if (!built.has(T.id)) {
@@ -423,8 +636,29 @@ function aim() {
   camera.updateMatrixWorld();
   wake();
 }
+// A land that glows (`bloom` above 0) is drawn through a bloom, so that its neon bleeds light into the
+// dark round it. The bloom is made the first time such a land is shown; the others are drawn straight.
+// Only what is brighter than GLARE blooms. By moonlight the brightest roof any lens can paint is about 0.27,
+// so no wall blooms. Nor should a window: a lit facade is a big light, and a town of them blooming is a glare.
+// A land keeps its windows under GLARE (GLOW × `neon`) and its lines of neon over it (GLOW × `trim`, `kerbs`).
+const GLARE = 0.35;
+let bloom = null;
+function glow() {
+  if (!bloom) {
+    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+    const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 }));
+    const pass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), T.bloom, 0.4, GLARE);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(pass);
+    composer.addPass(new OutputPass());
+    bloom = { composer, pass };
+  }
+  bloom.pass.strength = T.bloom;
+  return bloom.composer;
+}
 function resize() {
   renderer.setSize(innerWidth, innerHeight, false);
+  bloom?.composer.setSize(innerWidth, innerHeight);
   aim();
 }
 addEventListener("resize", resize);
@@ -629,7 +863,8 @@ const eraWindow = () => moments[Math.max(0, Math.round(playhead) - Math.max(2, M
 const eraColor = (f) => {
   const from = eraWindow();
   const last = touchedBy(f, clock);
-  if (last < from || clock === from) return plain(f);
+  // Not built yet, though it may still be sinking into the ground from a later day: not "just built" either.
+  if (f.birth > clock || last < from || clock === from) return plain(f);
   return tmp.copy(plain(f)).lerp(f.birth >= from ? C.fresh : C.hot, 0.45 + 0.55 * ((last - from) / (clock - from)));
 };
 
@@ -945,7 +1180,16 @@ function mount(data, animate) {
 
   for (const old of [town, plates, lamps, ...built.values()]) if (old) retire(old);
   built.clear();
-  town = new THREE.InstancedMesh(box, townMaterial, Math.max(1, next));
+  // The town's own box, so that it can carry each building's windows: how big they are, and which are lit.
+  const townBox = box.clone();
+  const fronts = new Float32Array(Math.max(1, next) * 2);
+  files.forEach((f) => {
+    const size = facadeOf(f);
+    const seed = seedOf(f);
+    for (let k = f.first; k < f.first + f.floors.length; k++) (fronts[k * 2] = size), (fronts[k * 2 + 1] = seed);
+  });
+  townBox.setAttribute("facade", new THREE.InstancedBufferAttribute(fronts, 2));
+  town = new THREE.InstancedMesh(townBox, townMaterial, Math.max(1, next));
   town.count = next;
   town.castShadow = town.receiveShadow = true;
   // The mesh is told where its buildings are, so it is not skipped when the camera looks at one corner.
@@ -1304,7 +1548,8 @@ renderer.setAnimationLoop((t) => {
   if (!(moving || growing || glowing || playing || lit || film || frames > 0)) return;
   frames = Math.max(0, frames - 1);
   label();
-  renderer.render(scene, camera);
+  if (T.bloom > 0) glow().render();
+  else renderer.render(scene, camera);
   // In the same turn as the drawing: a moment later the browser has cleared what WebGL drew.
   if (film) frame();
 });
