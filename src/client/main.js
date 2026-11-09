@@ -750,6 +750,8 @@ let film = null;
 const FILM_TYPE = window.MediaRecorder && ["video/mp4;codecs=avc1.640028", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type));
 /** How long the finished town is held at the end, in milliseconds: the last buildings are still rising when the history stops. */
 const FILM_HOLD = 1800;
+/** How much larger the district names are in the video than on the screen. */
+const FILM_SIGNS = 1.6;
 $("film").hidden = !FILM_TYPE;
 function record() {
   if (film) return wrap(0);
@@ -795,28 +797,37 @@ function frame() {
   pen.drawImage(canvas, 0, 0, sheet.width, sheet.height);
   pen.textBaseline = "alphabetic";
   pen.lineJoin = "round";
-  const write = (text, x, y, color) => {
+  const write = (text, x, y, color, halo = 4 * k) => {
     pen.strokeStyle = paper;
-    pen.lineWidth = 4 * k;
+    pen.lineWidth = halo;
     pen.strokeText(text, x, y);
     pen.fillStyle = color;
     pen.fillText(text, x, y);
   };
+  // The district names, larger than on the screen and drawn about the point each one marks. A video is
+  // mostly watched smaller than it was made, in a feed or on a phone, and compression blurs small type.
   pen.textAlign = "center";
+  const u = FILM_SIGNS * k;
+  const placed = [];
   for (const { d, el } of signs) {
     if (el.style.display !== "block") continue;
     const minor = d.depth > 1;
+    const size = (minor ? 12 : 14) * u;
     const x = parseFloat(el.style.left) * k;
-    const y = parseFloat(el.style.top) * k;
+    const y = (parseFloat(el.style.top) + POLE) * k - POLE * u; // the rule under the name
     const color = minor ? soft : ink;
-    pen.font = `${minor ? 500 : 600} ${(minor ? 10 : 11) * k}px ${labelFace}`;
-    pen.letterSpacing = `${0.16 * (minor ? 10 : 11) * k}px`;
+    pen.font = `${minor ? 600 : 700} ${size}px ${labelFace}`;
+    pen.letterSpacing = `${0.12 * size}px`;
     const text = d.label.toUpperCase();
     const wide = pen.measureText(text).width;
-    write(text, x, y - 8 * k, color);
+    const base = y - 6 * u - 0.2 * size;
+    const box = [x - wide / 2 - 6 * u, base - size, x + wide / 2 + 6 * u, y + POLE * u];
+    if (placed.some((other) => overlap(box, other))) continue;
+    placed.push(box);
+    write(text, x, base, color, 0.35 * size);
     pen.fillStyle = color;
-    pen.fillRect(x - wide / 2, y - 1 * k, wide, k);
-    pen.fillRect(x - k / 2, y, k, (minor ? 9 : 14) * k);
+    pen.fillRect(x - wide / 2, y - u, wide, u);
+    pen.fillRect(x - u / 2, y, u, (minor ? 9 : 14) * u);
   }
   pen.letterSpacing = "0px";
   pen.textAlign = "left";
@@ -832,17 +843,31 @@ function frame() {
 $("film").onclick = record;
 
 // ------------------------------------------------------------------ labels
+/** How far a district's name stands above the point it marks, in page pixels. */
+const POLE = 16;
 const lift = () => signs.forEach((sign) => (sign.at.y = sign.inside.reduce((max, f) => Math.max(max, f.tall), 0) + 0.05 * sign.d.depth));
+/** Do two boxes, [left, top, right, bottom], overlap? */
+const overlap = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+/** Put each district's name over it. The largest districts go first, and a name that would land on one already placed is left out. */
 function label() {
   const pxPerUnit = innerHeight / (2 * view.span);
-  for (const { d, el, at } of signs) {
+  const placed = [];
+  for (const sign of signs) {
+    const { d, el, at } = sign;
     const wide = Math.max(d.w, d.h) * pxPerUnit;
-    const showing = wide > (d.depth === 1 ? 70 : 190) && (clock === null || d.birth <= clock);
+    let showing = wide > (d.depth === 1 ? 70 : 190) && (clock === null || d.birth <= clock);
+    if (showing) {
+      v3.copy(at).project(camera);
+      const x = ((v3.x + 1) / 2) * innerWidth;
+      const y = ((1 - v3.y) / 2) * innerHeight - POLE;
+      // A name's size does not change, so it is measured once, the first time it is shown.
+      if (!sign.size) (el.style.display = "block"), (sign.size = [el.offsetWidth, el.offsetHeight]);
+      const [w, h] = sign.size;
+      const box = [x - w / 2 - 6, y - h - 4, x + w / 2 + 6, y + POLE];
+      showing = !placed.some((other) => overlap(box, other));
+      if (showing) placed.push(box), (el.style.left = `${x}px`), (el.style.top = `${y}px`);
+    }
     el.style.display = showing ? "block" : "none";
-    if (!showing) continue;
-    v3.copy(at).project(camera);
-    el.style.left = `${((v3.x + 1) / 2) * innerWidth}px`;
-    el.style.top = `${((1 - v3.y) / 2) * innerHeight - 16}px`;
   }
 }
 
