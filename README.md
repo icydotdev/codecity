@@ -25,10 +25,10 @@ Codebases now change faster than anyone can read them line by line. **codecity**
 It runs locally with a single command and produces a single HTML file. There is nothing to configure, no account to create, and no data leaves your machine.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/icydotdev/codecity/main/assets/history.gif" width="800" alt="A 6,000 file repository growing from its first commit to the present day" />
+  <img src="https://raw.githubusercontent.com/icydotdev/codecity/main/assets/history.gif" width="800" alt="The React repository growing from its first commit to the present day" />
 </p>
 
-<p align="center"><sub>History playback of a 6,000 file, 2,500 commit test repository.</sub></p>
+<p align="center"><sub>History playback of the React repository (7,300 files, 21,000 commits), recorded with <b>Save video</b> and shown at twice the speed.</sub></p>
 
 ## Quick Start
 
